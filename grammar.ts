@@ -1,4 +1,4 @@
-class TRange {
+export class TRange {
     public constructor(public min:number, public max:number, public reader:Reader) { }
     static combine(a:TRange, b:TRange):TRange {
         return new TRange(Math.min(a.min, b.min), Math.max(a.max, b.max), a.reader);
@@ -25,7 +25,7 @@ class TRange {
     }
 }
 
-class Reader {
+export class Reader {
     public constructor(public str:string, public file:string = 'file', public pos = 0) {
     }
     
@@ -117,7 +117,8 @@ class Reader {
 }
 
 type Skipper = (readerContext:ReaderContext) => void;
-class ReaderContext {
+
+export class ReaderContext {
     skipperStack:Skipper[] = [];
     skipper:Skipper;
     public constructor(public reader:Reader) {
@@ -136,14 +137,14 @@ class ReaderContext {
     }
 }
 
-class GrammarNode {
+export class GrammarNode {
     type = 'GrammarNode';
     constructor(public tokens:TRange[]) {
     }
     get text() {
         if (this.tokens.length == 0) return '';
         var min = this.tokens[0].min;
-        var max = this.tokens[this.tokens.length].max;
+        var max = this.tokens[this.tokens.length - 1].max;
         return this.tokens[0].reader.slice(min, max);
     }
     as<T extends GrammarNode>(clazz:Class<T>) {
@@ -151,29 +152,35 @@ class GrammarNode {
     }
 }
 
-class ListGrammarNode extends GrammarNode {
+export class ListGrammarNode extends GrammarNode {
     type = 'ListGrammarNode';
     public constructor(tokens:TRange[], public values:GrammarNode[], public separators:GrammarNode[]) {
         super(tokens);
     }
 }
 
-class SequenceGrammarNode extends GrammarNode {
+export class SequenceGrammarNode extends GrammarNode {
     type = 'SequenceGrammarNode';
     public constructor(tokens:TRange[], public items:GrammarNode[]) {
         super(tokens);
     }
 }
 
-class UnmatchGrammarNode extends GrammarNode {
+export class UnmatchGrammarNode extends GrammarNode {
     type = 'UnmatchGrammarNode';
     constructor(public tokens:TRange[]) {
         super(tokens);
     }
 }
 
-class GrammarResult {
+export class GrammarResult {
     public constructor(public matched:Boolean, public node:GrammarNode) {
+    }
+    get text() {
+        return this.node.text;
+    }
+    toString() {
+        return this.node.text;
     }
     static matched(node:GrammarNode) {
         return new GrammarResult(true, node);
@@ -183,7 +190,7 @@ class GrammarResult {
     }
 }
 
-class GBase {
+export class GBase {
     /*
     constructor(build: () => string) {
     }
@@ -194,14 +201,14 @@ class GBase {
     }
 }
 
-class GSure extends GBase {
+export class GSure extends GBase {
 	match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
         return GrammarResult.matched(new UnmatchGrammarNode([]));
     }
 }
 
-class GLiteral extends GBase {
+export class GLiteral extends GBase {
 	public constructor(public value:string, public clazz:Class<GrammarNode> = UnmatchGrammarNode) {
 		super();
 	}
@@ -214,7 +221,7 @@ class GLiteral extends GBase {
     }
 }
 
-class GRegExp extends GBase {
+export class GRegExp extends GBase {
 	public constructor(public value:RegExp, public clazz:Class<GrammarNode> = UnmatchGrammarNode) {
 		super();
 	}
@@ -227,7 +234,7 @@ class GRegExp extends GBase {
     }
 }
 
-class GAny extends GBase {
+export class GAny extends GBase {
 	public constructor(public items:GBase[]) {
 		super();
 	}
@@ -247,7 +254,7 @@ class GAny extends GBase {
     }
 }
 
-class GOptional extends GBase {
+export class GOptional extends GBase {
 	public constructor(public value:GBase) {
 		super();
 	}
@@ -263,7 +270,7 @@ class GOptional extends GBase {
     }
 }
 
-class GRef extends GBase {
+export class GRef extends GBase {
     value:GBase;
     
 	public constructor() {
@@ -280,7 +287,7 @@ class GRef extends GBase {
     } 
 }
 
-class GSkipper extends GBase {
+export class GSkipper extends GBase {
 	public constructor(public value:GBase, public skipper: Skipper) {
 		super();
 	}
@@ -296,7 +303,7 @@ class GSkipper extends GBase {
     }
 }
 
-class GSequence extends GBase {
+export class GSequence extends GBase {
 	public constructor(public items:GBase[], public clazz?:Class<GrammarNode>) {
 		super();
 	}
@@ -327,7 +334,7 @@ class GSequence extends GBase {
     }
 }
 
-class GList extends GBase {
+export class GList extends GBase {
 	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<ListGrammarNode>) {
 		super();
 	}
@@ -363,15 +370,15 @@ class GList extends GBase {
     }
 }
 
-class Grammar {
-	match(str:string, root:GBase) {
+export class Grammar {
+	match(str:string, root:GBase):GrammarResult {
         return root.match(new ReaderContext(new Reader(str)));
     }
 }
 
 type anytok = string | RegExp | GBase;
 
-function tok(v: anytok, clazz?:Class<GrammarNode>) {
+export function tok(v: anytok, clazz?:Class<GrammarNode>) {
     if (v == null) return null;
     if (v instanceof GBase) {
         return v;
@@ -381,202 +388,24 @@ function tok(v: anytok, clazz?:Class<GrammarNode>) {
         return new GLiteral(<string>v, clazz);
     }
 }
-function _tok(v: anytok) { return tok(v); }
+export function _tok(v: anytok) { return tok(v); }
 
-function seq(list:anytok[], clazz?:Class<GrammarNode>) {
-    return new GSequence(list.map(_tok), clazz);
-}
-
-function any(list:anytok[]) {
-    return new GAny(list.map(_tok));
-}
-
-function opt(v:anytok) {
-    return new GOptional(tok(v));
-}
-
-function sure() {
-    return new GSure();
-}
-
-function ref() {
-    return new GRef();
-}
-
-enum Infix {
-    No = 0,
-    Optional = 1,
-    Force = 2,
-}
-
-interface Class<T> { new(...args:any[]):T; }
-
-function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode>) {
+export function seq(list:anytok[], clazz?:Class<GrammarNode>) { return new GSequence(list.map(_tok), clazz); }
+export function _any(list:anytok[]) { return new GAny(list.map(_tok)); }
+export function opt(v:anytok) { return new GOptional(tok(v)); }
+export function sure() { return new GSure(); }
+export function ref() { return new GRef(); }
+export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode>) {
     return new GList(tok(element), tok(separator), min, clazz);
 }
 
-class BinaryOp extends GrammarNode {
-    type = 'BinaryOp';
-    
-    public constructor(tokens:TRange[], public left:GrammarNode, public op:string, public right:GrammarNode) {
-        super(tokens);
-    }
-}
-
-class BinaryOpList extends ListGrammarNode {
-    type = 'BinaryOpList';
-    public constructor(tokens:TRange[], public values:GrammarNode[], public operators:GrammarNode[]) {
-        super(tokens, values, operators);
-    }
-    public get operatorsRaw() {
-        return this.operators.map(o => o.tokens[0].text);
-    }
-}
-
-class IfNode extends GrammarNode {
-    type = 'IfNode';
-    public expr:GrammarNode;
-    public codeTrue:GrammarNode;
-    public codeFalse:GrammarNode;
-    
-    public constructor(tokens:TRange[], nodes:GrammarNode[]) {
-        super(tokens);
-        this.expr = nodes[0];
-        this.codeTrue = nodes[1];
-        this.codeFalse = nodes[2];
-    }
-}
-class WhileNode extends GrammarNode {
-    type = 'WhileNode';
-    public expr:GrammarNode;
-    public code:GrammarNode;
-    
-    public constructor(tokens:TRange[], nodes:GrammarNode[]) {
-        super(tokens);
-        this.expr = nodes[0];
-        this.code = nodes[1];
-    }
-}
-class IntNode extends GrammarNode {
-    type = 'IntNode';
-    value = 0;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = parseInt(tokens[0].text);
-    }  
-}
-class BoolNode extends GrammarNode {
-    type = 'BoolNode';
-    value = false;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = (tokens[0].text == 'true');
-    }  
-}
-class FloatNode extends GrammarNode {
-    type = 'FloatNode';
-    value = 0;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = parseFloat(tokens[0].text);
-    }  
-}
-
-new Grammar();
-var _expr = ref();
-var _expr1 = ref();
-var _expr2 = ref();
-var _stm = ref();
-var _typedecl = ref();
-
-var _stms = list(_stm, null, 0); 
-
-var _float = tok(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/, FloatNode);
-var _int = tok(/^\d[\d_]+/, IntNode);
-var _bool = any([tok('true', BoolNode), tok('false', BoolNode)]);
-var _id = tok(/^[a-z]\w*/i, IntNode);
-var _id_wg = seq([_id, opt(seq(['<', list(_id, ','), '>']))]);
-var _lit = any([_bool, _float, _int]);
-var _unop = any([
-    '++', '--',
-    '+', '-', '!', '~'
-   ]);
-var _binop = any([
-    '<=>',
-    '+', '-', '/', '*', '%', '&', '|', '^', '&&', '||', '==', '!=', '===', '!==', '...', '..', '<', '>', '<=', '>=', 'is', 'as']);
-
-var _access1 = seq(['.', sure(), _id]);
-var _access2 = seq(['[', sure(), _expr, ']']);
-var _access3 = seq(['(', sure(), list(_expr, ','), ')']);
-var _access = any([_access1, _access2, _access3, '++', '--']);
-
-_expr1.set(any([
-    _lit,
-    seq([_unop, _expr1]),
-    seq(['(', _expr, ')']),
-    seq(['[', list(_expr, ',', 0), ']']), // array literal
-])); 
-
-_expr2.set(any([
-    seq([_expr1, list(_access, null, 0)]),
-]));
-
-var _func_arg = seq([_id, opt(seq([':', _typedecl])), opt(seq(['=', _expr]))]);
-var _func_args = list(_func_arg, ',');
-
-_expr.set(any([
-    seq(['(', _func_args, ')', '=>', sure(), _expr]),
-    seq([_id, '=>', sure(), _expr]),
-    seq(['await', sure(), _expr]),
-    seq(['yield', sure(), _expr]),
-    list(_expr2, _binop, 1, BinaryOpList)
-]));
-
-_typedecl.set(any([
-    _id
-]));
-
-var _sc_typedecl = seq([':', _typedecl]);
-
-var _if = seq(['if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
-var _for = seq(['for', sure(), '(', _id, 'in', _expr, ')', _stm]);
-var _while = seq(['while', sure(), '(', _expr, ')', _stm], WhileNode);
-var _do = seq(['do', sure(), '(', _expr, ')', _stm, 'while', '(' , _expr, ')', ';']);
-var _return = seq(['return', sure(), _expr, ';']);
-var _continue = seq(['continue', ';']);
-var _break = seq(['break', ';']);
-var _fallthrough = seq(['fallthrough', ';']);
-var _class = seq(['class', sure(), _id_wg, '{', _stms, '}']);
-var _extension = seq(['extension', sure(), _id_wg, '{', _stms, '}']);
-var _struct = seq(['struct', sure(), _id, '{', '}']);
-var _enum = seq(['enum', sure(), _id, '{', '}']);
-var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([any(['=', '=>']), _expr]))]);
-var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';']);
-var _function = seq(['function', _id_wg, '(', _func_args, ')', opt(_sc_typedecl), '{', _stms, '}']);
-//var _var = seq([opt('lazy'), 'var', sure(), _id, ';']);
-_stm.set(any([
-    ';',
-    seq(['{', _stms, '}']),
-    _if,
-    _for,
-    _while,
-    _return,
-    _class,
-    _extension,
-    _enum,
-    _vars,
-    _function,
-    _continue,
-    _break,
-    _fallthrough,
-    seq([_expr, ';']),
-]));
+interface Class<T> { new(...args:any[]):T; }
 
 //console.log(_if.match(new ReaderContext(new Reader('if ((1)) 1; else 1;'))));
 //console.log(_stms.match(new ReaderContext(new Reader('var a; var b; function test() {}'))));
 //console.log(_stms.match(new ReaderContext(new Reader('var a:int = 1, b = 3;'))));
 //console.log(_stms.match(new ReaderContext(new Reader('class Test { lazy var a = 10; }'))));
-console.log(_stms.match(new ReaderContext(new Reader('var a = ((c, d) => 10);'))));
+//console.log(_stms.match(new ReaderContext(new Reader('var a = ((c, d) => 10);'))));
 //console.log(_lit.match(new ReaderContext(new Reader('777.3'))));
 
 export function test() {
