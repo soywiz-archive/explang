@@ -328,7 +328,7 @@ class GSequence extends GBase {
 }
 
 class GList extends GBase {
-	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<GrammarNode>) {
+	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<ListGrammarNode>) {
 		super();
 	}
     
@@ -411,7 +411,7 @@ enum Infix {
 
 interface Class<T> { new(...args:any[]):T; }
 
-function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<GrammarNode>) {
+function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode>) {
     return new GList(tok(element), tok(separator), min, clazz);
 }
 
@@ -484,19 +484,52 @@ class FloatNode extends GrammarNode {
 
 new Grammar();
 var _expr = ref();
+var _expr1 = ref();
+var _expr2 = ref();
 var _stm = ref();
 var _typedecl = ref();
 
+var _stms = list(_stm, null, 0); 
+
 var _float = tok(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/, FloatNode);
-var _int = tok(/^\d+/, IntNode);
+var _int = tok(/^\d[\d_]+/, IntNode);
 var _bool = any([tok('true', BoolNode), tok('false', BoolNode)]);
 var _id = tok(/^[a-z]\w*/i, IntNode);
+var _id_wg = seq([_id, opt(seq(['<', list(_id, ','), '>']))]);
 var _lit = any([_bool, _float, _int]);
-var _binop = any(['+', '-', '/', '*', '%', '&', '|', '^', '&&', '||']);
-_expr.set(any([
+var _unop = any([
+    '++', '--',
+    '+', '-', '!', '~'
+   ]);
+var _binop = any([
+    '<=>',
+    '+', '-', '/', '*', '%', '&', '|', '^', '&&', '||', '==', '!=', '===', '!==', '...', '..', '<', '>', '<=', '>=', 'is', 'as']);
+
+var _access1 = seq(['.', sure(), _id]);
+var _access2 = seq(['[', sure(), _expr, ']']);
+var _access3 = seq(['(', sure(), list(_expr, ','), ')']);
+var _access = any([_access1, _access2, _access3, '++', '--']);
+
+_expr1.set(any([
     _lit,
-    _id,
+    seq([_unop, _expr1]),
     seq(['(', _expr, ')']),
+    seq(['[', list(_expr, ',', 0), ']']), // array literal
+])); 
+
+_expr2.set(any([
+    seq([_expr1, list(_access, null, 0)]),
+]));
+
+var _func_arg = seq([_id, opt(seq([':', _typedecl])), opt(seq(['=', _expr]))]);
+var _func_args = list(_func_arg, ',');
+
+_expr.set(any([
+    seq(['(', _func_args, ')', '=>', sure(), _expr]),
+    seq([_id, '=>', sure(), _expr]),
+    seq(['await', sure(), _expr]),
+    seq(['yield', sure(), _expr]),
+    list(_expr2, _binop, 1, BinaryOpList)
 ]));
 
 _typedecl.set(any([
@@ -510,13 +543,16 @@ var _for = seq(['for', sure(), '(', _id, 'in', _expr, ')', _stm]);
 var _while = seq(['while', sure(), '(', _expr, ')', _stm], WhileNode);
 var _do = seq(['do', sure(), '(', _expr, ')', _stm, 'while', '(' , _expr, ')', ';']);
 var _return = seq(['return', sure(), _expr, ';']);
-var _stms = list(_stm, null, 0); 
-var _class = seq(['class', sure(), _id, '{', '}']);
+var _continue = seq(['continue', ';']);
+var _break = seq(['break', ';']);
+var _fallthrough = seq(['fallthrough', ';']);
+var _class = seq(['class', sure(), _id_wg, '{', _stms, '}']);
+var _extension = seq(['extension', sure(), _id_wg, '{', _stms, '}']);
 var _struct = seq(['struct', sure(), _id, '{', '}']);
 var _enum = seq(['enum', sure(), _id, '{', '}']);
 var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([any(['=', '=>']), _expr]))]);
-var _vars = seq(['var', sure(), list(_vardecl, ',', 1), ';']);
-var _function = seq(['function', _id, '(', ')', opt(_sc_typedecl), '{', '}']);
+var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';']);
+var _function = seq(['function', _id_wg, '(', _func_args, ')', opt(_sc_typedecl), '{', _stms, '}']);
 //var _var = seq([opt('lazy'), 'var', sure(), _id, ';']);
 _stm.set(any([
     ';',
@@ -526,13 +562,23 @@ _stm.set(any([
     _while,
     _return,
     _class,
+    _extension,
     _enum,
     _vars,
     _function,
+    _continue,
+    _break,
+    _fallthrough,
     seq([_expr, ';']),
 ]));
 
 //console.log(_if.match(new ReaderContext(new Reader('if ((1)) 1; else 1;'))));
 //console.log(_stms.match(new ReaderContext(new Reader('var a; var b; function test() {}'))));
-console.log(_stms.match(new ReaderContext(new Reader('var a:int = 1, b = 3;'))));
+//console.log(_stms.match(new ReaderContext(new Reader('var a:int = 1, b = 3;'))));
+//console.log(_stms.match(new ReaderContext(new Reader('class Test { lazy var a = 10; }'))));
+console.log(_stms.match(new ReaderContext(new Reader('var a = ((c, d) => 10);'))));
 //console.log(_lit.match(new ReaderContext(new Reader('777.3'))));
+
+export function test() {
+    
+}

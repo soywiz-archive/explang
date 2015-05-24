@@ -8,6 +8,7 @@
     },
  
     "files": [
-        "grammar.ts"
+        "grammar.ts",
+        "test/test.ts"
     ]
 }
