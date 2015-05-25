@@ -1,0 +1,7 @@
+import _ir = require('./ir_ast');
+import _lang = require('./lang_ast');
+
+function convert(code:_lang.GrammarNode):_ir.IrModule {
+	throw 'Must implement convert';
+	return new _ir.IrModule();
+}

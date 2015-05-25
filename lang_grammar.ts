@@ -6,72 +6,7 @@ import {
 	ref, list, tok, _any, seq, sure, opt,
 } from './grammar';
 
-class BinaryOp extends GrammarNode {
-    type = 'BinaryOp';
-    
-    public constructor(tokens:TRange[], public left:GrammarNode, public op:string, public right:GrammarNode) {
-        super(tokens);
-    }
-}
-
-class BinaryOpList extends ListGrammarNode {
-    type = 'BinaryOpList';
-    public constructor(tokens:TRange[], public values:GrammarNode[], public operators:GrammarNode[]) {
-        super(tokens, values, operators);
-    }
-    public get operatorsRaw() {
-        return this.operators.map(o => o.tokens[0].text);
-    }
-}
-
-class IfNode extends GrammarNode {
-    type = 'IfNode';
-    public expr:GrammarNode;
-    public codeTrue:GrammarNode;
-    public codeFalse:GrammarNode;
-    
-    public constructor(tokens:TRange[], nodes:GrammarNode[]) {
-        super(tokens);
-        this.expr = nodes[0];
-        this.codeTrue = nodes[1];
-        this.codeFalse = nodes[2];
-    }
-}
-class WhileNode extends GrammarNode {
-    type = 'WhileNode';
-    public expr:GrammarNode;
-    public code:GrammarNode;
-    
-    public constructor(tokens:TRange[], nodes:GrammarNode[]) {
-        super(tokens);
-        this.expr = nodes[0];
-        this.code = nodes[1];
-    }
-}
-class IntNode extends GrammarNode {
-    type = 'IntNode';
-    value = 0;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = parseInt(tokens[0].text);
-    }  
-}
-class BoolNode extends GrammarNode {
-    type = 'BoolNode';
-    value = false;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = (tokens[0].text == 'true');
-    }  
-}
-class FloatNode extends GrammarNode {
-    type = 'FloatNode';
-    value = 0;
-    public constructor(tokens:TRange[]) {
-        super(tokens);
-        this.value = parseFloat(tokens[0].text);
-    }  
-}
+import { IntNode, BoolNode, FloatNode, IfNode, BinaryOpList, WhileNode } from './lang_ast';
 
 export var _expr = ref();
 var _expr1 = ref();
@@ -98,9 +33,10 @@ var _binop = _any([
  ]);
 
 var _access1 = seq(['.', sure(), _id]);
-var _access2 = seq(['[', sure(), _expr, ']']);
-var _access3 = seq(['(', sure(), list(_expr, ','), ')']);
-var _access = _any([_access1, _access2, _access3, '++', '--']);
+var _access2 = seq(['?.', sure(), _id]);
+var _access3 = seq(['[', sure(), _expr, ']']);
+var _access4 = seq(['(', sure(), list(_expr, ','), ')']);
+var _access = _any([_access1, _access2, _access3, _access4, '++', '--']);
 
 _expr1.set(_any([
     _lit,
@@ -130,6 +66,7 @@ _typedecl.set(_any([
 
 var _sc_typedecl = seq([':', _typedecl]);
 
+var _staticif = seq(['static', 'if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
 var _if = seq(['if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
 var _for = seq(['for', sure(), '(', _id, 'in', _expr, ')', _stm]);
 var _while = seq(['while', sure(), '(', _expr, ')', _stm], WhileNode);
@@ -144,11 +81,17 @@ var _struct = seq(['struct', sure(), _id, '{', '}']);
 var _enum = seq(['enum', sure(), _id, '{', '}']);
 var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([_any(['=', '=>']), _expr]))]);
 var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';']);
-var _function = seq(['function', _id_wg, '(', _func_args, ')', opt(_sc_typedecl), '{', _stms, '}']);
+var _function = seq(
+    ['function', sure(), _id_wg, '(', _func_args, ')', _any([
+        seq(['=>', _expr, ';']),
+        seq([opt(_sc_typedecl), _stm]),
+    ])
+]);
 //var _var = seq([opt('lazy'), 'var', sure(), _id, ';']);
 _stm.set(_any([
     ';',
     seq(['{', _stms, '}']),
+    _staticif,
     _if,
     _for,
     _while,
