@@ -8,6 +8,7 @@
     },
  
     "files": [
+        "compiler.ts",
         "grammar.ts",
         "test/test.ts"
     ]

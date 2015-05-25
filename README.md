@@ -28,6 +28,7 @@ Design include these things in mind:
 * No custom-operators or all-is-an-operator to avoid strange DSLs, but enable operator overloading 
 * Getters should be easy
 * Subscripts
+* No keyword new for instantiating objects
 * Extensions (adding methods to completed classes, interfaces + allow closed classes to fullfil interfaces like in swift)
 * Code should read from left to right, reading first the subject and then reading transformations, so extensions are great when not abused. 
 * Avoid verbosity without making the language complex or hard to read
@@ -39,6 +40,7 @@ Design include these things in mind:
 * Support for value types (structures) that doesn't impact GC
 * AOT compiling
 * Constructor should have a single name: constructor/__constructor/new, not the class name
+* Named parameters
 
 DRY:
 * Constructors should allow to declare fields like typescript, scala

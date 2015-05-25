@@ -3,6 +3,17 @@ export class TRange {
     static combine(a:TRange, b:TRange):TRange {
         return new TRange(Math.min(a.min, b.min), Math.max(a.max, b.max), a.reader);
     }
+    static combineList(list:TRange[]):TRange {
+        if (!list || list.length == 0) return null;
+        var first = list[0];
+        var min = first.min;
+        var max = first.max;
+        for (var i of list) {
+            min = Math.min(min, i.min);
+            max = Math.max(max, i.max);
+        }
+        return new TRange(min, max, first.reader);
+    }
     public contains(index:number) { return index >= this.min && index <= this.max; }
     public toString() { return `${this.min}:${this.max}`; }
     public get file():string { return this.reader.file; }
@@ -137,15 +148,35 @@ export class ReaderContext {
     }
 }
 
+export class NodeInfo {
+    public tokens:TRange[];
+    public range:TRange;
+    
+    public constructor(tokens:TRange[]) {
+        this.tokens = tokens;
+        this.range = TRange.combineList(tokens);
+    }
+
+    addInfo(info: NodeInfo) {
+        this.addTokens(info.tokens);
+    }
+    
+    addTokens(add:TRange[]) {
+        this.tokens = this.tokens.concat(add);
+        this.range = TRange.combineList(this.tokens);
+    }
+    
+    get text() {
+        return this.range.text;
+    }
+}
+
 export class GrammarNode {
     type = 'GrammarNode';
-    constructor(public tokens:TRange[]) {
+    constructor(public info:NodeInfo) {
     }
     get text() {
-        if (this.tokens.length == 0) return '';
-        var min = this.tokens[0].min;
-        var max = this.tokens[this.tokens.length - 1].max;
-        return this.tokens[0].reader.slice(min, max);
+        return this.info.text;
     }
     as<T extends GrammarNode>(clazz:Class<T>) {
         return <T>this;
@@ -154,22 +185,22 @@ export class GrammarNode {
 
 export class ListGrammarNode extends GrammarNode {
     type = 'ListGrammarNode';
-    public constructor(tokens:TRange[], public values:GrammarNode[], public separators:GrammarNode[]) {
-        super(tokens);
+    public constructor(info:NodeInfo, public values:GrammarNode[], public separators:GrammarNode[]) {
+        super(info);
     }
 }
 
 export class SequenceGrammarNode extends GrammarNode {
     type = 'SequenceGrammarNode';
-    public constructor(tokens:TRange[], public items:GrammarNode[]) {
-        super(tokens);
+    public constructor(info:NodeInfo, public items:GrammarNode[]) {
+        super(info);
     }
 }
 
 export class UnmatchGrammarNode extends GrammarNode {
     type = 'UnmatchGrammarNode';
-    constructor(public tokens:TRange[]) {
-        super(tokens);
+    constructor(info:NodeInfo) {
+        super(info);
     }
 }
 
@@ -204,7 +235,7 @@ export class GBase {
 export class GSure extends GBase {
 	match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
-        return GrammarResult.matched(new UnmatchGrammarNode([]));
+        return GrammarResult.matched(new UnmatchGrammarNode(new NodeInfo([])));
     }
 }
 
@@ -217,7 +248,7 @@ export class GLiteral extends GBase {
         readerContext.skip();
         var result = readerContext.reader.matchLitRange(this.value);
         var clazz = this.clazz;
-        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz([result])); 
+        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz(new NodeInfo([result]))); 
     }
 }
 
@@ -230,7 +261,7 @@ export class GRegExp extends GBase {
         readerContext.skip();
         var result = readerContext.reader.matchERegRange(this.value);
         var clazz = this.clazz;
-        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz([result])); 
+        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz(new NodeInfo([result]))); 
     }
 }
 
@@ -266,7 +297,7 @@ export class GOptional extends GBase {
         var v = this.value.match(readerContext);
         if (v.matched) return v;
         reader.pos = start;
-        return GrammarResult.matched(new GrammarNode([]));
+        return GrammarResult.matched(new GrammarNode(new NodeInfo([])));
     }
 }
 
@@ -311,7 +342,7 @@ export class GSequence extends GBase {
     match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
         var startPos = readerContext.reader.pos;
-        var tokens:TRange[] = [];
+        var info = new NodeInfo([]);
         var nodes:GrammarNode[] = [];
         var sure = false;
         for (var i of this.items) {
@@ -325,12 +356,12 @@ export class GSequence extends GBase {
                 readerContext.reader.pos = startPos;
                 return r;
             }
-            tokens = tokens.concat(r.node.tokens);
+            info.addInfo(r.node.info);
             if (r.node && !(r.node instanceof UnmatchGrammarNode)) nodes.push(r.node);
         }
         var clazz = this.clazz;
         if (clazz == null) clazz = SequenceGrammarNode;
-        return GrammarResult.matched(new clazz(tokens, nodes));
+        return GrammarResult.matched(new clazz(info, nodes));
     }
 }
 
@@ -341,8 +372,8 @@ export class GList extends GBase {
     
     match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
-        var r2 = GrammarResult.matched(new GrammarNode([]));
-        var tokens:TRange[] = [];
+        var r2 = GrammarResult.matched(new GrammarNode(new NodeInfo([])));
+        var info = new NodeInfo([]);
         var elements:GrammarNode[] = [];
         var separators:GrammarNode[] = [];
         var count = 0;
@@ -353,12 +384,13 @@ export class GList extends GBase {
                 break;
             }
             count++;
-            tokens = tokens.concat(r.node.tokens);
+            info.addInfo(r.node.info);
+
             elements.push(r.node);
             if (this.separator != null) {
                 r2 = this.separator.match(readerContext);
                 if (r2.node) {
-                    tokens = tokens.concat(r2.node.tokens);
+                    info.addInfo(r2.node.info);
                     separators.push(r2.node);
                 }
             }
@@ -366,7 +398,7 @@ export class GList extends GBase {
         if (count < this.min) return GrammarResult.unmatched();
         var clazz = this.clazz;
         if (clazz == null) clazz = ListGrammarNode;
-        return GrammarResult.matched(new clazz(tokens, elements, separators));
+        return GrammarResult.matched(new clazz(info, elements, separators));
     }
 }
 
