@@ -79,7 +79,7 @@ var _class = seq(['class', sure(), _id_wg, '{', _stms, '}']);
 var _extension = seq(['extension', sure(), _id_wg, '{', _stms, '}']);
 var _struct = seq(['struct', sure(), _id, '{', '}']);
 var _enum = seq(['enum', sure(), _id, '{', '}']);
-var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([_any(['=', '=>']), _expr]))]);
+var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([_any(['=>', '=']), _expr]))]);
 var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';']);
 var _function = seq(
     ['function', sure(), _id_wg, '(', _func_args, ')', _any([

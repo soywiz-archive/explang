@@ -172,6 +172,34 @@ export class NodeInfo {
     }
 }
 
+export class Language {
+    public constructor(public name:string) {
+    }
+}
+
+export class AstNode {
+    
+}
+
+export class PsiFile {
+    
+}
+
+export class PsiReference {
+    public element:PsiElement;
+}
+
+export class PsiElement {
+    public language:Language;
+    public file:PsiFile;
+    public range:TRange;
+    public node:AstNode;
+    public children:PsiElement[] = [];
+    public parent:PsiElement;
+    get first() { return this.children.length ? this.children[0] : null; }
+    get last() { return this.children.length ? this.children[this.children.length - 1] : null; }
+}
+
 export class GrammarNode {
     type = 'GrammarNode';
     constructor(public info:NodeInfo) {
