@@ -1,6 +1,8 @@
 Experimental language
 ==========================
 
+[![Build Status](https://travis-ci.org/soywiz/explang.svg?branch=master)](https://travis-ci.org/soywiz/explang)
+
 The idea of this language is to explore some great features found in other languages like:
 typescript, haxe, scala, swift, d, C#, F#
 
