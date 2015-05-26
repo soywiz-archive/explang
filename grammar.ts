@@ -167,6 +167,7 @@ export class NodeInfo {
     }
     
     get text() {
+        if (this.range == null) return '';
         return this.range.text;
     }
 }
@@ -208,16 +209,21 @@ export class GrammarResult {
     public constructor(public matched:Boolean, public node:GrammarNode) {
     }
     get text() {
+        if (this.node == null) return '';
         return this.node.text;
     }
     toString() {
-        return this.node.text;
+        return this.text;
     }
-    static matched(node:GrammarNode) {
+    static matched(reason:string, node:GrammarNode) {
+        //console.log('matched', reason);
         return new GrammarResult(true, node);
     }
-    static unmatched() {
-        return new GrammarResult(false, null);
+    
+    private static _unmatched:GrammarResult = new GrammarResult(false, null); 
+    static unmatched(reason:string) {
+        //console.log('unmatched:', reason);
+        return this._unmatched;
     }
 }
 
@@ -235,7 +241,7 @@ export class GBase {
 export class GSure extends GBase {
 	match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
-        return GrammarResult.matched(new UnmatchGrammarNode(new NodeInfo([])));
+        return GrammarResult.matched('sure', new UnmatchGrammarNode(new NodeInfo([])));
     }
 }
 
@@ -248,7 +254,8 @@ export class GLiteral extends GBase {
         readerContext.skip();
         var result = readerContext.reader.matchLitRange(this.value);
         var clazz = this.clazz;
-        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz(new NodeInfo([result]))); 
+        var reason = `literal("${this.value}")`;
+        return (result == null) ? GrammarResult.unmatched(reason) : GrammarResult.matched(reason, new clazz(new NodeInfo([result]))); 
     }
 }
 
@@ -261,7 +268,8 @@ export class GRegExp extends GBase {
         readerContext.skip();
         var result = readerContext.reader.matchERegRange(this.value);
         var clazz = this.clazz;
-        return (result == null) ? GrammarResult.unmatched() : GrammarResult.matched(new clazz(new NodeInfo([result]))); 
+        var reason = `regexp(${this.value})`;
+        return (result == null) ? GrammarResult.unmatched(reason) : GrammarResult.matched(reason, new clazz(new NodeInfo([result]))); 
     }
 }
 
@@ -281,7 +289,7 @@ export class GAny extends GBase {
             }
             reader.pos = start;
         }
-        return GrammarResult.unmatched();
+        return GrammarResult.unmatched('any');
     }
 }
 
@@ -297,7 +305,7 @@ export class GOptional extends GBase {
         var v = this.value.match(readerContext);
         if (v.matched) return v;
         reader.pos = start;
-        return GrammarResult.matched(new GrammarNode(new NodeInfo([])));
+        return GrammarResult.matched('opt', new GrammarNode(new NodeInfo([])));
     }
 }
 
@@ -354,14 +362,14 @@ export class GSequence extends GBase {
             //console.log(i.constructor, i, r);
             if (!r.matched) {
                 readerContext.reader.pos = startPos;
-                return r;
+                return GrammarResult.unmatched('seq');
             }
             info.addInfo(r.node.info);
             if (r.node && !(r.node instanceof UnmatchGrammarNode)) nodes.push(r.node);
         }
         var clazz = this.clazz;
         if (clazz == null) clazz = SequenceGrammarNode;
-        return GrammarResult.matched(new clazz(info, nodes));
+        return GrammarResult.matched('seq', new clazz(info, nodes));
     }
 }
 
@@ -372,14 +380,14 @@ export class GList extends GBase {
     
     match(readerContext:ReaderContext):GrammarResult {
         readerContext.skip();
-        var r2 = GrammarResult.matched(new GrammarNode(new NodeInfo([])));
+        var r2 = GrammarResult.matched('list:0', new GrammarNode(new NodeInfo([])));
         var info = new NodeInfo([]);
         var elements:GrammarNode[] = [];
         var separators:GrammarNode[] = [];
         var count = 0;
         while (!readerContext.reader.eof) {
             var r = this.element.match(readerContext);
-            if (!r.matched && r2.matched && this.separator != null) return GrammarResult.unmatched();
+            if (!r.matched && r2.matched && this.separator != null) return GrammarResult.unmatched('list:1');
             if (!r.matched) {
                 break;
             }
@@ -395,10 +403,10 @@ export class GList extends GBase {
                 }
             }
         }
-        if (count < this.min) return GrammarResult.unmatched();
+        if (count < this.min) return GrammarResult.unmatched('list:2');
         var clazz = this.clazz;
         if (clazz == null) clazz = ListGrammarNode;
-        return GrammarResult.matched(new clazz(info, elements, separators));
+        return GrammarResult.matched('list:3', new clazz(info, elements, separators));
     }
 }
 

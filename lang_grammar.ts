@@ -17,7 +17,7 @@ var _typedecl = ref();
 export var _stms = list(_stm, null, 0); 
 
 var _float = tok(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/, FloatNode);
-var _int = tok(/^\d[\d_]+/, IntNode);
+var _int = tok(/^\d[\d_]*/, IntNode);
 var _bool = _any([tok('true', BoolNode), tok('false', BoolNode)]);
 var _id = tok(/^[a-z]\w*/i, IntNode);
 var _id_wg = seq([_id, opt(seq(['<', list(_id, ','), '>']))]);
@@ -67,7 +67,7 @@ _typedecl.set(_any([
 var _sc_typedecl = seq([':', _typedecl]);
 
 var _staticif = seq(['static', 'if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
-var _if = seq(['if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
+export var _if = seq(['if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
 var _for = seq(['for', sure(), '(', _id, 'in', _expr, ')', _stm]);
 var _while = seq(['while', sure(), '(', _expr, ')', _stm], WhileNode);
 var _do = seq(['do', sure(), '(', _expr, ')', _stm, 'while', '(' , _expr, ')', ';']);

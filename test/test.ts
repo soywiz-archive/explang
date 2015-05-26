@@ -7,9 +7,11 @@ import assert = require("assert"); // node.js core module
 var grammar = new _grammar.Grammar();
 
 describe('test', () => {
-	it('test', () => {
+	it('simple match', () => {
 		assert.equal('true;', grammar.match('true;', lang_grammar._stms).text);
-		//assert.equal('----', grammar.match('function a() => 10;', lang_grammar._stms).text);
-		//assert.equal('---', grammar.match('if (1) ;', lang_grammar._stms).text);
+		assert.equal('if (1) ;', grammar.match('if (1) ;', lang_grammar._stms).text);
+		assert.equal('while (true) { }', grammar.match('while (true) { }', lang_grammar._stms).text);
+		assert.equal('var a = 1;', grammar.match('var a = 1;', lang_grammar._stms).text);
+		//assert.equal('var a => 1;', grammar.match('var a => 1;', lang_grammar._stms).text);
 	});
 });
