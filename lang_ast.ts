@@ -6,59 +6,105 @@ export import ListGrammarNode = _grammar.ListGrammarNode;
 export import UnmatchGrammarNode = _grammar.UnmatchGrammarNode;
 export import SequenceGrammarNode = _grammar.SequenceGrammarNode;
 
-export class Expr extends PsiElement {
+/*
+class Expr extends PsiElement {
 }
 
-export class Stm extends PsiElement {
+class Stm extends PsiElement {
 }
+*/
 
 export class VarDecl extends PsiElement {
+    public name:Id;
+    public init:PsiElement;
+    //public vars:Var;
+}
+
+export class VarDecls extends PsiElement {
+    public vars:ListGrammarNode<VarDecl>;
 }
 
 export class BinaryOp extends PsiElement {
 }
 
-export class BinaryOpList extends Expr {
-    /*
+export class Stms extends ListGrammarNode<PsiElement> {
+    
+}
+
+export class BinaryOpList extends ListGrammarNode<PsiElement> {
     public get operatorsRaw() {
-        return this.operators.map(o => o.info.tokens[0].text);
+        return this.separators;
     }
-    */
 }
 
-export class If extends Stm {
-    public expr:Expr;
-    public codeTrue:Stm;
-    public codeFalse:Stm;
-
-}
-export class While extends Stm {
-    public expr:Expr;
-    public code:Stm;
+export class TypeTag extends PsiElement {
+    
 }
 
-export class Return extends Stm {
-    public expr:Expr;
+export class If extends PsiElement {
+    public expr:PsiElement;
+    public codeTrue:PsiElement;
+    public codeFalse:PsiElement;
 }
 
-export class Do extends Stm {
-    public code:Stm;
-    public expr:Expr;
+export class IdWithGenerics extends PsiElement {
+    public id:Id;
+    public generics:PsiElement;
 }
 
-export class Int extends Expr {
+export class Class extends PsiElement {
+    public idwg:IdWithGenerics;
+}
+
+export class Extension extends PsiElement {
+}
+
+export class Struct extends PsiElement {
+}
+
+export class Enum extends PsiElement {
+}
+
+export class While extends PsiElement {
+    public expr:PsiElement;
+    public code:PsiElement;
+}
+
+export class Continue extends PsiElement { }
+export class Break extends PsiElement { }
+export class Fallthrough extends PsiElement { }
+
+export class For extends PsiElement {
+    public id:PsiElement;
+    public expr:PsiElement;
+    public stm:PsiElement;
+}
+
+export class Return extends PsiElement {
+    public expr:PsiElement;
+}
+
+export class Do extends PsiElement {
+    public code:PsiElement
+    public expr:PsiElement;
+}
+
+export class Id extends PsiElement {
+}
+
+export class Int extends PsiElement {
     value = 0;
     protected init() {
         this.value = parseInt(this.text);
     }
 }
-export class Bool extends Expr {
+export class Bool extends PsiElement {
     value = false;
     protected init() {
         this.value = (this.text == 'true');
     }
 }
-export class Float extends Expr {
+export class Float extends PsiElement {
     value = 0;
     protected init() {
         this.value = parseFloat(this.text);

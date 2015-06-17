@@ -208,14 +208,10 @@ export class PsiElement {
         for (let child of children) {
             child.parent = this;
         }
-        this.init();
     }
     
     static create<T extends PsiElement>(clazz:Class<T>, file:PsiFile, range:TRange, children:PsiElement[] = []):T {
         return new clazz(file, range, children);
-    }
-    
-    protected init() {
     }
 
     get type() {
@@ -236,8 +232,8 @@ export class PsiElement {
     }
 }
 
-export class ListGrammarNode extends PsiElement {
-    public elements:PsiElement[];
+export class ListGrammarNode<T extends PsiElement> extends PsiElement {
+    public elements:T[];
     public separators:PsiElement[];
 }
 
@@ -248,6 +244,7 @@ export class UnmatchGrammarNode extends PsiElement {
 }
 
 export class GrammarResult {
+    public name:string = null;
     public constructor(public matched:Boolean, public node:PsiElement) {
     }
     get text() {
@@ -363,7 +360,9 @@ export class GCapture extends GBase {
 	}
     
    	match(readerContext:ReaderContext):GrammarResult {
-        return this.value.match(readerContext);
+        var result = this.value.match(readerContext);
+        result.name = this.name;
+        return result;
     }
 }
 
@@ -409,6 +408,7 @@ export class GSequence extends GBase {
         context.skip();
         var startPos = context.reader.pos;
         var nodes:PsiElement[] = [];
+        var results:GrammarResult[] = [];
         var sure = false;
         for (var i of this.items) {
             if (i instanceof GSure) {
@@ -421,15 +421,22 @@ export class GSequence extends GBase {
                 return GrammarResult.unmatched('seq');
             }
             nodes.push(r.node);
+            results.push(r);
         }
         var clazz = this.clazz;
         if (clazz == null) clazz = SequenceGrammarNode;
-        return GrammarResult.matched('seq', context.createPsi(clazz, nodes));
+        var element = context.createPsi(clazz, nodes);
+        for (let r of results) {
+            if (r.name != null) {
+                (<any>element)[r.name] = r.node;
+            }
+        }
+        return GrammarResult.matched('seq', element);
     }
 }
 
 export class GList extends GBase {
-	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<ListGrammarNode>) {
+	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<ListGrammarNode<PsiElement>>) {
 		super();
 	}
     
@@ -461,7 +468,7 @@ export class GList extends GBase {
         if (count < this.min) return GrammarResult.unmatched('list:2');
         var clazz = this.clazz;
         if (clazz == null) clazz = ListGrammarNode;
-        var i2:ListGrammarNode = <ListGrammarNode>context.createPsi(clazz, all);
+        var i2:ListGrammarNode<PsiElement> = <ListGrammarNode<PsiElement>>context.createPsi(clazz, all);
         i2.separators = separators;
         i2.elements = elements;
         return GrammarResult.matched('list:3', i2);
@@ -494,7 +501,7 @@ export function opt(v:anytok) { return new GOptional(tok(v)); }
 export function sure() { return new GSure(); }
 export function capture(v: GBase, name:string) { return new GCapture(v, name); }
 export function ref() { return new GRef(); }
-export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode>) {
+export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode<PsiElement>>) {
     return new GList(tok(element), tok(separator), min, clazz);
 }
 

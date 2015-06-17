@@ -17,7 +17,8 @@ describe('test', () => {
 		assert.equal('if (true) 1; else 2;', grammar.match('if (true) 1; else 2;', lang_grammar._stms).text);
 		assert.equal('var a = 3; var b = 4;', grammar.match('var a = 3; var b = 4;', lang_grammar._stms).text);
 		
-		var node = grammar.match('var a = 3; var b = 4;', lang_grammar._stms).node;
-		//lang_services.Services.pass1(node);
+		//var node = grammar.match('if (1 + 1) { }', lang_grammar._stms).node;
+		var node = grammar.match('var a = 100; return a + 2;', lang_grammar._stms).node;
+		lang_services.Services.pass1(node);
 	});
 });
