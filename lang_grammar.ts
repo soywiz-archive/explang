@@ -1,12 +1,11 @@
 import {
 	TRange,
-	GrammarNode,
 	ListGrammarNode,
 	Grammar,
-	ref, list, tok, _any, seq, sure, opt,
+	ref, list, tok, _any, seq, sure, capture, opt,
 } from './grammar';
 
-import { IntNode, BoolNode, FloatNode, IfNode, BinaryOpList, WhileNode } from './lang_ast';
+import ast = require('./lang_ast');
 
 export var _expr = ref();
 var _expr1 = ref();
@@ -16,10 +15,10 @@ var _typedecl = ref();
 
 export var _stms = list(_stm, null, 0); 
 
-var _float = tok(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/, FloatNode);
-var _int = tok(/^\d[\d_]*/, IntNode);
-var _bool = _any([tok('true', BoolNode), tok('false', BoolNode)]);
-var _id = tok(/^[a-z]\w*/i, IntNode);
+var _float = tok(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/, ast.Float);
+var _int = tok(/^\d[\d_]*/, ast.Int);
+var _bool = _any([tok('true', ast.Bool), tok('false', ast.Bool)]);
+var _id = tok(/^[a-z]\w*/i, ast.Int);
 var _id_wg = seq([_id, opt(seq(['<', list(_id, ','), '>']))]);
 var _lit = _any([_bool, _float, _int]);
 var _unop = _any([
@@ -57,7 +56,7 @@ _expr.set(_any([
     seq([_id, '=>', sure(), _expr]),
     seq(['await', sure(), _expr]),
     seq(['yield', sure(), _expr]),
-    list(_expr2, _binop, 1, BinaryOpList)
+    list(_expr2, _binop, 1, <any>ast.BinaryOpList)
 ]));
 
 _typedecl.set(_any([
@@ -66,12 +65,15 @@ _typedecl.set(_any([
 
 var _sc_typedecl = seq([':', _typedecl]);
 
-var _staticif = seq(['static', 'if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
-export var _if = seq(['if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], IfNode);
+var _staticif = seq(['static', 'if', sure(), '(', _expr, ')', _stm, opt(seq(['else', _stm]))], ast.If);
+export var _if = seq([
+    'if', sure(), '(', capture(_expr, 'expr'), ')', capture(_stm, 'codeTrue'), opt(seq(['else', capture(_stm, 'codeFalse')]))],
+    ast.If
+);
 var _for = seq(['for', sure(), '(', _id, 'in', _expr, ')', _stm]);
-var _while = seq(['while', sure(), '(', _expr, ')', _stm], WhileNode);
-var _do = seq(['do', sure(), '(', _expr, ')', _stm, 'while', '(' , _expr, ')', ';']);
-var _return = seq(['return', sure(), _expr, ';']);
+var _while = seq(['while', sure(), '(', capture(_expr, 'expr'), ')', capture(_stm, 'code')], ast.While);
+var _do = seq(['do', sure(), capture(_stm, 'code'), 'while', '(' , capture(_expr, 'expr'), ')', ';'], ast.Do);
+var _return = seq(['return', sure(), capture(opt(_expr), 'expr'), ';'], ast.Return);
 var _continue = seq(['continue', ';']);
 var _break = seq(['break', ';']);
 var _fallthrough = seq(['fallthrough', ';']);
@@ -80,7 +82,7 @@ var _extension = seq(['extension', sure(), _id_wg, '{', _stms, '}']);
 var _struct = seq(['struct', sure(), _id, '{', '}']);
 var _enum = seq(['enum', sure(), _id, '{', '}']);
 var _vardecl = seq([_id, opt(_sc_typedecl), opt(seq([_any(['=>', '=']), _expr]))]);
-var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';']);
+var _vars = seq([opt('lazy'), 'var', sure(), list(_vardecl, ',', 1), ';'], ast.VarDecl);
 var _function = seq(
     ['function', sure(), _id_wg, '(', _func_args, ')', _any([
         seq(['=>', _expr, ';']),
