@@ -105,8 +105,12 @@ describe('test', () => {
 		testProgramEvalJs('var a = 10; a = 7; return a;', 7);
 	});
 
-	it('run4', () => {
+	it('run-if', () => {
 		testProgramEvalJs('var a = 10, b = 3; if (a < 7) { b = 2; } return b;', 3);
 		testProgramEvalJs('var a = 10, b = 3; if (a > 7) { b = 2; } else { b = 1; } return b;', 2);
+	});
+
+	it('run-while', () => {
+		testProgramEvalJs('var a = 10; var b = 0; while (a > 0) { a--; b += 3; } return b;', 30);
 	});
 });

@@ -99,32 +99,12 @@ export class Node {
 	}
 } 
 
-export class Expression extends Node {
-	constructor(public type:Type) {
-		super();
-	}
-}
+export class Expression extends Node { constructor(public type:Type) { super(); } }
 export class Statement extends Node { }
-
-export class LeftValue extends Expression {
-	
-}
-
-export class BinOpNode extends Expression {
-	public constructor(type:Type, public op:string, public l:Expression, public r:Expression) {
-		super(type);
-	}
-	
-	public check() {
-		//l.get
-	}
-}
-
-export class ReturnNode extends Statement {
-	public constructor(public optValue?:Expression) {
-		super();
-	}
-}
+export class LeftValue extends Expression { }
+export class BinOpNode extends Expression { public constructor(type:Type, public op:string, public l:Expression, public r:Expression) { super(type); } }
+export class UnopPost extends Expression { constructor(type:Type, public l:Expression, public op:string) { super(type); } }
+export class ReturnNode extends Statement { public constructor(public optValue?:Expression) { super(); } }
 
 export class ImmediateExpression extends Expression {
 	constructor(type:Type, public value:any) {
@@ -179,29 +159,11 @@ export class Statements extends Statement {
 	}
 }
 
-export class ExpressionStm extends Statement {
-	public constructor(public expression:Expression) {
-		super();
-	}
-}
-
-export class IfNode extends Statement {
-	public constructor(public e:Node, public t:Node, public f:Node) {
-		super();
-	}
-}
-
-export class CallExpression extends Expression {
-	constructor(public left:Expression, public args:Expression[], public retval:Type) {
-		super(retval);
-	}
-}
-
-export class IdExpression extends LeftValue {
-	public constructor(public id:string, type:Type) {
-		super(type);
-	}
-}
+export class ExpressionStm extends Statement { public constructor(public expression:Expression) { super(); } }
+export class IfNode extends Statement { public constructor(public e:Node, public t:Node, public f:Node) { super(); } }
+export class WhileNode extends Statement { public constructor(public e:Node, public body:Node) { super(); } }
+export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
+export class IdExpression extends LeftValue { public constructor(public id:string, type:Type) { super(type); } }
 
 var oops = [
     ["**"],
@@ -220,9 +182,7 @@ var priorityOps:{ [op:string]:number; } = {};
 
 for (var priority = 0; priority < oops.length; priority++) {
     let oop = oops[priority];
-    for (let op of oop) {
-        priorityOps[op] = priority + 1;
-    }
+    for (let op of oop) priorityOps[op] = priority + 1;
 }
 
 
@@ -233,6 +193,8 @@ export class NodeBuilder {
 	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
 	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
+	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
+	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }
 	binops(operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
         var prev = exprs.shift();

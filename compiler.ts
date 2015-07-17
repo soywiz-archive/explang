@@ -46,6 +46,8 @@ class Compiler {
 			for (let part of e.parts) {
 				if (part instanceof lang.AccessCall) {
 					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
+				} else if (part.text == '--') {
+					out = b.unopPost(out, '--');
 				} else {
 					e.root.dump();
 					throw `Unhandled expr-part ${part.type} : '${part.text}'`;
@@ -68,6 +70,8 @@ class Compiler {
 		
 		if (e instanceof lang.If) {
 			return b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e.codeFalse, resolver));
+		} else if (e instanceof lang.While) {
+			return b._while(this.expr(e.expr, resolver), this.stm(e.code, resolver));
 		} else if (e instanceof lang.Return) {
 			return b.ret(this.expr(e.expr, resolver));
 		} else if (e instanceof lang.ExpressionStm) {

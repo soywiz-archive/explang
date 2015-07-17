@@ -33,6 +33,15 @@ class Generator {
 			this.w.write('}');
 			return;
 		}
+		if (node instanceof ir.WhileNode) {
+			this.w.write('while (');
+			this.w.action(this.generateNode(node.e));
+			this.w.write(')');
+			this.w.write('{');
+			this.w.action(this.generateNode(node.body));
+			this.w.write('}');
+			return;
+		}
         if (node instanceof ir.BinOpNode) {
             let type = node.type;
             switch (type) {
@@ -61,6 +70,7 @@ class Generator {
             return;
         }
 		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
+		if (node instanceof ir.UnopPost) return this.w.action(this.generateNode(node.l)).write(node.op);
 		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
 		if (node instanceof ir.CallExpression) {
 			this.w.action(this.generateNode(node.left));
@@ -73,7 +83,7 @@ class Generator {
 			return this.w;
 		}
 		
-		throw new Error(`Unhandled node ${node}`);
+		throw new Error(`Unhandled generate node ${node}`);
 	}
     
     protected generateMethod(method:ir.IrMethod) {
