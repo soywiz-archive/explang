@@ -21,7 +21,7 @@ class Generator {
 		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
 		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
         if (node instanceof ir.BinOpNode) {
-            let type = node.getType();
+            let type = node.type;
             switch (type) {
                 case ir.Types.Int:
                     this.w.write('((');

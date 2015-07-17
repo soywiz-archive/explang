@@ -2,7 +2,6 @@
 
 import _grammar = require('../grammar');
 import lang_grammar = require('../lang_grammar');
-import lang_services = require('../lang_services');
 import gen_js = require('../gen_js');
 import ir = require('../ir_ast');
 import compiler = require('../compiler');
@@ -102,5 +101,6 @@ describe('test', () => {
 	it('run3', () => {
 		//testProgramJs('var a = 10; return a;', '');
 		testProgramEvalJs('var a = 10; return a;', 10);
+		testProgramEvalJs('var a = 10, b = 3; return a * b;', 30);
 	});
 });

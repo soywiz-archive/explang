@@ -18,10 +18,12 @@ export class IrLocal {
 
 export class IrMethod extends IrMember {
 	locals: IrLocal[] = [];
+	resolver: LocalResolver;
 	
 	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Statements) {
 		super(name, containingClass);
 		containingClass.methods.push(this);
+		this.resolver = new LocalResolver(null);
 	}
 	
 	createLocal(name:string, type:Type) {
@@ -60,6 +62,10 @@ export class ArrayType extends Type {
 	public constructor(public element:Type) { super(); }
 }
 
+export class FunctionType extends Type {
+	public constructor(public retval:Type, public args:Type[]) { super(); }
+}
+
 export class VoidType extends Type { }
 export class IntType extends Type { }
 export class LongType extends Type { }
@@ -75,10 +81,16 @@ export class Types {
 	public static Double = new DoubleType();
 	public static String = new StringType();
 	public static Unknown = new StringType();
+	
+	static array(element:Type):ArrayType { return new ArrayType(element); }
+	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
+	
+	static getReturnType(type:Type):Type {
+		if (type instanceof FunctionType) return type.retval;
+		return type;
+	}
 }
-
 export class Node {
-	getType():Type { throw 'Must override'; }    
 	get nodeKind() {
         return '' + (<any>this.constructor).name;
     }
@@ -87,49 +99,70 @@ export class Node {
 	}
 } 
 
-export class Expression extends Node { }
+export class Expression extends Node {
+	constructor(public type:Type) {
+		super();
+	}
+}
 export class Statement extends Node { }
 
 export class BinOpNode extends Expression {
-	//public constructor(public type:Type, public op:string, public l:Node, public r:Node) {
-    public constructor(public op:string, public l:Node, public r:Node) {
-		super();
+	public constructor(type:Type, public op:string, public l:Expression, public r:Expression) {
+		super(type);
 	}
 	
 	public check() {
 		//l.get
 	}
-
-	getType():Type { return this.l.getType(); }
 }
 
 export class ReturnNode extends Statement {
 	public constructor(public optValue?:Expression) {
 		super();
 	}
-	
-	getType():Type {
-		return Types.Void;
-		/*
-		if (this.optValue != null) {
-			return this.optValue.getType();
-		} else {
-			
-		}
-		*/
-	}
 }
 
 export class ImmediateExpression extends Expression {
-	constructor(public type:Type, public value:any) {
-		super();
-	}
-	getType():Type {
-		return this.type;
+	constructor(type:Type, public value:any) {
+		super(type);
 	}
 }
 
+export interface ResolverItem {
+	type: Type;
+	name: string;
+}
 
+export class Resolver {
+	get(name:string):ResolverItem {
+		let result = this._get(name);
+		if (result == null) throw new Error(`Can't find '${name}'`);
+		return result;
+	}
+	
+	protected _get(name:string):ResolverItem {
+		return null;
+	}
+}
+
+export class LocalResolver extends Resolver {
+	vars: { [key:string]:ResolverItem } = {};
+	
+	constructor(public parent:Resolver) {
+		super();
+	}
+	
+	add(local:ResolverItem) {
+		this.vars[local.name] = local;
+	}
+	
+	protected _get(name:string):ResolverItem {
+		var result:ResolverItem = null;
+		if (result == null) result = this.vars[name];
+		if (result == null && this.parent) result = this.parent.get(name);
+		return result;
+	}	
+}
 
 export class Statements extends Statement {
 	public constructor(public nodes:Node[]) {
@@ -155,20 +188,20 @@ export class IfNode extends Statement {
 }
 
 export class CallExpression extends Expression {
-	constructor(public left:Expression, public args:Expression[]) {
-		super();
+	constructor(public left:Expression, public args:Expression[], public retval:Type) {
+		super(retval);
 	}
 }
 
 export class IdExpression extends Expression {
-	public constructor(public id:string) {
-		super();
+	public constructor(public id:string, type:Type) {
+		super(type);
 	}
 }
 
 export class AssignExpression extends Expression {
 	constructor(public left:Expression, public right:Expression) {
-		super();
+		super(right.type);
 	}
 }
 
@@ -200,7 +233,7 @@ export class NodeBuilder {
 	ret(expr?:Expression) { return new ReturnNode(expr); }
 	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
 	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
-	call(left:Expression, args:Expression[]) { return new CallExpression(left, args); }
+	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
 	binops(operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
@@ -211,16 +244,16 @@ export class NodeBuilder {
             let nextPriority = priorityOps[op] | 0;
             if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
                 var pbop = <BinOpNode>prev;
-                prev = new BinOpNode(pbop.op, pbop.l, new BinOpNode(op, pbop.r, next))
+                prev = new BinOpNode(pbop.l.type, pbop.op, pbop.l, new BinOpNode(pbop.l.type, op, pbop.r, next))
             } else {
-                prev = new BinOpNode(op, prev, next);
+                prev = new BinOpNode(prev.type, op, prev, next);
             }
             prevPriority = nextPriority;
         }
 
         return prev;
 	}
-	id(id:string) { return new IdExpression(id); }
+	id(id:string, type:Type) { return new IdExpression(id, type); }
 	assign(left:Expression, right:Expression) {
 		return new AssignExpression(left, right);
 	}

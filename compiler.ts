@@ -1,7 +1,8 @@
 import ir = require('./ir_ast');
 import lang = require('./lang_ast');
-
+import { ResolverItem, Resolver, LocalResolver } from './ir_ast';
 var b = new ir.NodeBuilder();
+
 
 class Compiler {
 	private mod = new ir.IrModule();
@@ -34,23 +35,17 @@ class Compiler {
 		}
 	}
 	
-	compnode(e:lang.PsiElement):ir.Node {
+	expr(e:lang.PsiElement, resolver:LocalResolver):ir.Expression {
 		if (e == null) return null;
 		if (e.text == '') return null;
 		
-		if (e instanceof lang.If) {
-			return b._if(this.compnode(e.expr), this.compnode(e.codeTrue), this.compnode(e.codeFalse));
-		} else if (e instanceof lang.Return) {
-			return b.ret(this.compnode(e.expr));
-		} else if (e instanceof lang.ExpressionStm) {
-			return b.exprstm(this.compnode(e.expression));
-		} else if (e instanceof lang.BinaryOpList) {
-			return b.binops(e.operatorsRaw.map(e => e.text), e.expressions.map(child => this.compnode(child)));
+		if (e instanceof lang.BinaryOpList) {
+			return b.binops(e.operatorsRaw.map(e => e.text), e.expressions.map(child => this.expr(child, resolver)));
 		} else if (e instanceof lang.CallOrArrayAccess) {
-			var out = this.compnode(e.left);
+			var out = this.expr(e.left, resolver);
 			for (let part of e.parts) {
 				if (part instanceof lang.AccessCall) {
-					out = b.call(out, part.args.map(arg => this.compnode(arg)));
+					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
 				} else {
 					e.root.dump();
 					throw `Unhandled compnode2 ${part.type} : '${part.text}'`;
@@ -58,20 +53,37 @@ class Compiler {
 			}
 			return out;
 		} else if (e instanceof lang.Id) {
-			return b.id(e.text);
+			return b.id(e.text, resolver.get(e.text).type);
 		} else if (e instanceof lang.Int) {
 			return b.int(parseInt(e.text));
+		}
+		
+		e.root.dump();
+		throw `Unhandled compexpr ${e.type} : '${e.text}'`;
+	}
+	
+	stm(e:lang.PsiElement, resolver:LocalResolver):ir.Statement {
+		if (e == null) return null;
+		if (e.text == '') return null;
+		
+		if (e instanceof lang.If) {
+			return b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e.codeFalse, resolver));
+		} else if (e instanceof lang.Return) {
+			return b.ret(this.expr(e.expr, resolver));
+		} else if (e instanceof lang.ExpressionStm) {
+			return b.exprstm(this.expr(e.expression, resolver));
 		} else if (e instanceof lang.VarDecls) {
-			return b.stms(e.vars.map(v => this.compnode(v)));
+			return b.stms(e.vars.map(v => this.stm(v, resolver)));
 		} else if (e instanceof lang.VarDecl) {
 			var initExpr = e.initExpr;
-			var initValue = this.compnode(initExpr);
-			var local = this.method.createLocal(e.name.text, initExpr ? initValue.getType() : ir.Types.Unknown);
-			return b.exprstm(b.assign(b.id(local.name), initValue));
-		} else {
-			e.root.dump();
-			throw `Unhandled compnode ${e.type} : '${e.text}'`;
+			var initValue = this.expr(initExpr, resolver);
+			var local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
+			resolver.add(local);
+			return b.exprstm(b.assign(b.id(local.name, initValue.type), initValue));
 		}
+		
+		e.root.dump();
+		throw `Unhandled compstm ${e.type} : '${e.text}'`;
 	}
 	
 	compile(e:lang.PsiElement) {
@@ -93,7 +105,7 @@ class Compiler {
 		
 		this.ensureMethod();
 		if (!this.method.body) this.method.body = b.stms([]);
-		this.method.body.add(this.compnode(e));
+		this.method.body.add(this.stm(e, this.method.resolver));
 	}
 }
 
