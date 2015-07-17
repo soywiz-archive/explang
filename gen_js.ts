@@ -47,8 +47,10 @@ class Generator {
             //return this.w.write(`${node.value}`);
             return out;
         }
+		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
+		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
 		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
-		if (e instanceof ir.IdExpression) return IndentedString.EMPTY.with(`${e.id}`);
+		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.name}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);
 		if (e instanceof ir.CallExpression) {
 

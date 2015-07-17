@@ -130,4 +130,8 @@ describe('test', () => {
 	it('run-range', () => {
 		//testProgramEvalJs('return 0 ... 100;', { min: 0, max: 100 });
 	});
+
+	it('run-this-access', () => {
+		testProgramEvalJs('return this.main == this.main;', true);
+	});
 });

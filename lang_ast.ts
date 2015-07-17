@@ -57,7 +57,9 @@ export class BinaryOpList extends ListGrammarNode<PsiElement> {
     }
 }
 
-export class AccessField extends ListGrammarNode<PsiElement> { }
+export class AccessField extends ListGrammarNode<PsiElement> {
+    id:PsiElement;
+}
 export class AccessFieldOpt extends ListGrammarNode<PsiElement> { }
 export class AccessArray extends ListGrammarNode<PsiElement> {
 }

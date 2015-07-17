@@ -34,7 +34,7 @@ var _binop = _any([
     "=", '+', '-', '/', '*', '%', '&', '|', '^', '<', '>',
  ]);
 
-var _access1 = seq(['.', sure(), _id], ast.AccessField);
+var _access1 = seq(['.', sure(), capture(_id, 'id')], ast.AccessField);
 var _access2 = seq(['?.', sure(), _id], ast.AccessFieldOpt);
 var _access3 = seq(['[', sure(), _expr, ']'], ast.AccessArray);
 var _access4 = seq(['(', sure(), list(_expr, ','), ')'], ast.AccessCall);

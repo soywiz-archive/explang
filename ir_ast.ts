@@ -50,6 +50,8 @@ export class IrOperator {
 }
 
 export class IrMember {
+	type: Type;
+		
 	public constructor(public name:string, public containingClass:IrClass) {
 	}
 	
@@ -64,10 +66,12 @@ export class IrLocal {
 export class IrMethod extends IrMember {
 	locals: IrLocal[] = [];
 	resolver: LocalResolver;
+
 	
 	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Statements) {
 		super(name, containingClass);
 		containingClass.methods.push(this);
+		containingClass.members.set(name, this);
 		this.resolver = new LocalResolver(null);
 	}
 	
@@ -79,7 +83,7 @@ export class IrMethod extends IrMember {
 }
 
 export class IrField extends IrMember {
-	
+
 }
 
 export class IrScope {
@@ -89,9 +93,16 @@ export class IrScope {
 export class IrClass {
 	public fields:IrField[] = [];
 	public methods:IrMethod[] = [];
+	public members = new Map<string, IrMember>();
+	public type:Type;
 	
 	constructor(public name:string, public module:IrModule) {
 		module.classes.push(this);
+		this.type = new ClassType(this);
+	}
+	
+	getMember(name:string) {
+		return this.members.get(name);
 	}
 	
 	createMethod(name:string, isStatic:boolean, body:Statements) {
@@ -100,7 +111,12 @@ export class IrClass {
 }
 
 export class Type {
+}
 
+export class ClassType extends Type {
+	constructor(public clazz:IrClass) {
+		super();
+	}
 }
 
 export class PrimitiveType extends Type {
@@ -136,6 +152,15 @@ export class Types {
 	static getReturnType(type:Type):Type {
 		if (type instanceof FunctionType) return type.retval;
 		return type;
+	}
+	
+	static access(type:Type, name:string):IrMember {
+		if (type instanceof ClassType) {
+			return type.clazz.getMember(name);
+		}
+		throw 'Error .access';
+		//if (type instanceof FunctionType) return type.retval;
+		//return type;
 	}
 }
 export class Node {
@@ -207,11 +232,13 @@ export class Statements extends Statement {
 	}
 }
 
-export class ExpressionStm extends Statement { public constructor(public expression:Expression) { super(); } }
-export class IfNode extends Statement { public constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
-export class WhileNode extends Statement { public constructor(public e:Expression, public body:Statement) { super(); } }
+export class ExpressionStm extends Statement { constructor(public expression:Expression) { super(); } }
+export class IfNode extends Statement { constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
+export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
 export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
-export class IdExpression extends LeftValue { public constructor(public id:string, type:Type) { super(type); } }
+export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(local.type); } }
+export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(clazz); } }
+export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(member.type); } }
 
 var oops = [
     ["**"],
@@ -265,6 +292,7 @@ export class NodeBuilder {
 	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
 	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
 	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
+	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
 	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
 	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }
@@ -287,7 +315,8 @@ export class NodeBuilder {
 
         return (<BinOpNodeTemp>prev).convert(this.module);
 	}
-	id(id:string, type:Type) { return new IdExpression(id, type); }
+	_this(clazz:Type) { return new ThisExpression(clazz); }
+	local(local:IrLocal) { return new LocalExpression(local); }
 	assign(left:Expression, right:Expression) {
 		return new BinOpNode(right.type, '=', left, right);
 	}

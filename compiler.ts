@@ -31,15 +31,27 @@ class Compiler {
 	}
 
 	private ensureMethod() {
-		let b = this.b;
+		const b = this.b;
 		this.ensureClass();
 		if (this.method == null) {
 			this.method = this.clazz.createMethod('main', true, b.stms([]));
 		}
 	}
 	
+	private resolve(id:string, resolver:Resolver):ir.Expression {
+		const b = this.b;
+		if (id == 'this') {
+			return b._this(this.clazz.type);
+		}
+		var item = resolver.get(id);
+		if (item instanceof ir.IrLocal) {
+			return b.local(item);
+		}
+		throw "Unknown resolution type " + item;
+	}
+	
 	expr(e:lang.PsiElement, resolver:LocalResolver):ir.Expression {
-		let b = this.b;
+		const b = this.b;
 		if (e == null) return null;
 		if (e.text == '') return null;
 		
@@ -50,6 +62,10 @@ class Compiler {
 			for (let part of e.parts) {
 				if (part instanceof lang.AccessCall) {
 					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
+				} else if (part instanceof lang.AccessField) {
+					let member = ir.Types.access(out.type, part.id.text);
+					if (member == null) throw `Can't find member ${part.id.text}`;
+					out = b.access(out, member);
 				} else if (part.text == '--') {
 					out = b.unopPost(out, '--');
 				} else {
@@ -59,7 +75,7 @@ class Compiler {
 			}
 			return out;
 		} else if (e instanceof lang.Id) {
-			return b.id(e.text, resolver.get(e.text).type);
+			return this.resolve(e.text, resolver);
 		} else if (e instanceof lang.Int) {
 			return b.int(parseInt(e.text));
 		}
@@ -89,7 +105,7 @@ class Compiler {
 			var initValue = this.expr(initExpr, resolver);
 			var local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
 			resolver.add(local);
-			return b.exprstm(b.assign(b.id(local.name, initValue.type), initValue));
+			return b.exprstm(b.assign(b.local(local), initValue));
 		} else if (e instanceof lang.Stms) {
 			var scopeResolver = new LocalResolver(resolver);
 			return b.stms(e.stms2.map(c => this.stm(c, scopeResolver)));
