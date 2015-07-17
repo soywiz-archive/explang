@@ -156,6 +156,6 @@ export function generateRuntime():string {
 	return `
 		$ExpLang = {};
 		$ExpLang.range = function(min, max) { return { min : min, max: max }; }
-		$ExpLang.icomp = function(a, b) { if (a > b) return -1; else if (a < b) return +1; else return 0; }
+		$ExpLang.icomp = function(a, b) { if (a < b) return -1; else if (a > b) return +1; else return 0; }
 	`;
 }

@@ -7,7 +7,7 @@ export class IrModule {
 	public operators = new IrOperators();
 	
 	constructor() {
-		for (let op of ['+', '-', '*', '%', '**',
+		for (let op of ['+', '-', '*', '%', '**', '<=>',
 			'+=']) {
 			this.operators.addBinop(new IrOperator(this, op, Types.Int, Types.Int, Types.Int, null));
 		}

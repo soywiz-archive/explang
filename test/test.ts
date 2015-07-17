@@ -96,19 +96,22 @@ describe('test', () => {
 		);
 	});
 
-    it('run1', () => {
+    it('run-simple', () => {
 		testProgramEvalJs('return 10;', 10);
 	});
 
-	it('run2', () => {
+	it('run-operators', () => {
 		testProgramEvalJs('return 10 + 2;', 10 + 2);
         testProgramEvalJs('return 10 * 2;', 10 * 2);
         testProgramEvalJs('return 3 * 5 + 7;', 3 * 5 + 7);
         testProgramEvalJs('return 3 + 5 * 7;', 3 + 5 * 7);
         testProgramEvalJs('return 2 ** 8;', Math.pow(2, 8));
+        testProgramEvalJs('return 2 <=> 8;', -1);
+        testProgramEvalJs('return 8 <=> 2;', +1);
+        testProgramEvalJs('return 3 <=> 3;', 0);
 	});
 	
-	it('run3', () => {
+	it('run-locals', () => {
 		//testProgramJs('var a = 10; return a;', '');
 		testProgramEvalJs('var a = 10; return a;', 10);
 		testProgramEvalJs('var a = 10, b = 3; return a * b;', 30);
