@@ -1,3 +1,5 @@
+/// <reference path="./defs.d.ts" />
+
 import {
 	TRange,
 	ListGrammarNode,

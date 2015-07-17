@@ -1,3 +1,5 @@
+/// <reference path="./defs.d.ts" />
+
 import _grammar = require('./grammar');
 
 export import TRange = _grammar.TRange;

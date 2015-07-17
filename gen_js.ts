@@ -1,136 +1,161 @@
+/// <reference path="./defs.d.ts" />
+
 import ir = require('./ir_ast');
-import { IndentWriter } from './utils';
+import { IndentWriter, IndentedString } from './utils';
 
 class Generator {
-	private w: IndentWriter = new IndentWriter();
-	
-	public toString() {
-		return this.w.toString();
+	private binopRaw(e:ir.BinOpNode) {
+		let func:string = null;
+		let out = IndentedString.EMPTY;
+        switch (e.op) {
+            case '**': func = 'Math.pow'; break;
+			case '...': func = '$ExpLang.range'; break;
+			case '<=>': func = '$ExpLang.icomp'; break;
+            default:
+				if ([
+					'=', '+=', '-=',
+					'==', '!=', '<', '>', '<=', '>=', 
+					'+', '-', '*', '/', '%',
+					'|', '&',
+				].indexOf(e.op) >= 0) {
+					func = null;
+				} else {
+					throw new Error(`Unknown operator ${e.op}`);
+				}
+        }							
+        if (func) out = out.with(`${func}(`);
+        out = out.with(this.expr(e.l));
+        out = out.with(func ? `, ` : ` ${e.op} `);
+        out = out.with(this.expr(e.r));
+        if (func) out = out.with(`)`);
+		return out;
 	}
 	
-	protected generateNode(node:ir.Node):any {
-		//console.log(node, node ? node.nodeKind : null);
-		let w = this.w;
-
-		if (node == null) return;
-		if (node instanceof ir.Statements) {
-			for (let c of node.nodes) {
-				this.generateNode(c);
-			}
-			return;
-		}		
-		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
-		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
-		if (node instanceof ir.IfNode) {
-			this.w.write('if (');
-			this.w.action(this.generateNode(node.e));
-			this.w.write(')');
-			this.w.write('{');
-			this.w.action(this.generateNode(node.t));
-			this.w.write('}');
-			this.w.write('else {');
-			this.w.action(this.generateNode(node.f));
-			this.w.write('}');
-			return;
-		}
-		if (node instanceof ir.WhileNode) {
-			this.w.write('while (');
-			this.w.action(this.generateNode(node.e));
-			this.w.write(')');
-			this.w.write('{');
-			this.w.action(this.generateNode(node.body));
-			this.w.write('}');
-			return;
-		}
-        if (node instanceof ir.BinOpNode) {
-            let type = node.type;
+	protected expr(e:ir.Expression):IndentedString {
+		if (e == null) return IndentedString.EMPTY;
+		var out = IndentedString.EMPTY;
+		
+		if (e instanceof ir.BinOpNode) {
+            let type = e.type;
             switch (type) {
-                case ir.Types.Int:
-                    this.w.write('((');
-                    switch (node.op) {
-                        case '**':
-                            this.w.write(`Math.pow(`);
-                            this.w.action(this.generateNode(node.l));
-                            this.w.write(`,`);
-                            this.w.action(this.generateNode(node.r));
-                            this.w.write(`)`);
-                            break;
-                        default:
-                            this.w.action(this.generateNode(node.l));
-                            this.w.write(` ${node.op} `);
-                            this.w.action(this.generateNode(node.r));
-                            break;
-                    }
-                    this.w.write(')|0)');
-                    break;
+                case ir.Types.Int: return out.with('((').with(this.binopRaw(e)).with(')|0)');
+                case ir.Types.Bool: return out.with('!!(').with(this.binopRaw(e)).with(')');
+				case ir.Types.Iterable: return this.binopRaw(e);
                 default:
                     throw new Error(`Unhandled type ${type}`);
             }
             //return this.w.write(`${node.value}`);
-            return;
+            return out;
         }
-		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
-		if (node instanceof ir.UnopPost) return this.w.action(this.generateNode(node.l)).write(node.op);
-		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
-		if (node instanceof ir.CallExpression) {
-			this.w.action(this.generateNode(node.left));
-			this.w.write('(');
-			for (var n = 0; n < node.args.length; n++) {
-				if (n != 0) this.w.write(', ');
-				this.w.action(this.generateNode(node.args[n]));
+		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
+		if (e instanceof ir.IdExpression) return IndentedString.EMPTY.with(`${e.id}`);
+		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);
+		if (e instanceof ir.CallExpression) {
+
+			out = out.with(this.expr(e.left));
+			out = out.with('(');
+			for (var n = 0; n < e.args.length; n++) {
+				if (n != 0) out = out.with(', ');
+				out = out.with(this.expr(e.args[n]));
 			}
-			this.w.write(')');
-			return this.w;
+			out = out.with(')');
+			return out;
 		}
 		
-		throw new Error(`Unhandled generate node ${node}`);
+		throw new Error(`Unhandled generate expression ${e}`);
 	}
-    
-    protected generateMethod(method:ir.IrMethod) {
-		var name = method.name;
-        var className = method.containingClass.name;
-		if (method.isStatic) {
-			this.w.writeln(`${className}.${name} = function() {`);
-		} else {
-			this.w.writeln(`${className}.prototype.${name} = function() {`);
+	
+	protected stm(s:ir.Statement):IndentedString {
+		if (s == null) return IndentedString.EMPTY;
+		
+		if (s instanceof ir.Statements) {
+			let out = IndentedString.EMPTY;
+			for (let c of s.nodes) out = out.with(this.stm(c));
+			return out;
+		}		
+
+		if (s instanceof ir.ReturnNode) {
+			return IndentedString.EMPTY.with('return ').with(this.expr(s.optValue)).with(';\n');
 		}
-		this.w.indent(() => {
+		if (s instanceof ir.ExpressionStm) {
+			return IndentedString.EMPTY.with(this.expr(s.expression)).with(';\n');
+		}
+		if (s instanceof ir.IfNode) {
+			let out = IndentedString.EMPTY;
+			out = out.with('if (').with(this.expr(s.e)).with(')');
+			out = out.with('{').with(this.stm(s.t)).with('}');
+			out = out.with('else {').with(this.stm(s.f)).with('}');
+			return out;
+		}
+		if (s instanceof ir.WhileNode) {
+			let out = IndentedString.EMPTY;
+			out = out.with('while (').with(this.expr(s.e)).with(')');
+			out = out.with('{').with(this.stm(s.body)).with('}');
+			return out;
+		}
+		throw new Error(`Unhandled generate statement ${s}`);
+	}
+
+    protected generateMethod(method:ir.IrMethod):IndentedString {
+		let name = method.name;
+        let className = method.containingClass.name;
+		let out = IndentedString.EMPTY;
+		if (method.isStatic) {
+			out = out.with(`${className}.${name} = function() {\n`);
+		} else {
+			out = out.with(`${className}.prototype.${name} = function() {\n`);
+		}
+		out = out.indent(() => {
+			let out = IndentedString.EMPTY;
 			for (let local of method.locals) {
-				this.w.write('var ' + local.name);
+				out = out.with('var ' + local.name);
 				switch (local.type) {
-					case ir.Types.Int: this.w.write(' = 0'); break;
+					case ir.Types.Int: out = out.with(' = 0'); break;
 					default: throw new Error("Unhandled type " + local.type);
 				}
-				this.w.write(';').ln();
+				out = out.with(';\n');
 			}
-			this.generateNode(method.body);
+			out = out.with(this.stm(method.body));
+			return out;
 		});
-		this.w.writeln(`};`);
+		out = out.with(`};\n`);
+		return out;
     }
 	
-	protected generateClass(clazz:ir.IrClass) {
-        let name = clazz.name;
-		this.w.writeln(`var ${name} = (function () {`);
-		this.w.indent(() => {
-			this.w.writeln(`function ${name}() {`);
-			this.w.writeln(`}`);
-            for (let method of clazz.methods) {
-                this.generateMethod(method);
+	protected generateClass(clazz:ir.IrClass):IndentedString {
+        const name = clazz.name;
+		let out = IndentedString.EMPTY;
+		out = out.with(`var ${name} = (function () {\n`);
+		out = out.indent(() => {
+			let out = IndentedString.EMPTY;
+			out = out.with(`function ${name}() { }\n`);
+            for (const method of clazz.methods) {
+                out = out.with(this.generateMethod(method));
             }
-            this.w.writeln(`return ${name};`);
+            out = out.with(`return ${name};\n`);
+			return out;
 		});
-		this.w.writeln(`})();`);
+		out = out.with(`})();`);
+		return out;
 	}
 
 	generateModule(module:ir.IrModule) {
-		for (let clazz of module.classes) {
-			this.generateClass(clazz);
+		let out = IndentedString.EMPTY;
+		for (const clazz of module.classes) {
+			out = out.with(this.generateClass(clazz));
 		}
+		return out;
 	}
 }
 
 export function generate(module:ir.IrModule):string {
-	var gen = new Generator();
-	gen.generateModule(module);
-	return gen.toString();
+	return new Generator().generateModule(module).toString();
+}
+
+export function generateRuntime():string {
+	return `
+		$ExpLang = {};
+		$ExpLang.range = function(min, max) { return { min : min, max: max }; }
+		$ExpLang.icomp = function(a, b) { if (a > b) return -1; else if (a < b) return +1; else return 0; }
+	`;
 }

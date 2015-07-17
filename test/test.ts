@@ -1,4 +1,5 @@
 ///<reference path="mocha.d.ts" />
+///<reference path="../defs.d.ts" />
 
 import _grammar = require('../grammar');
 import lang_grammar = require('../lang_grammar');
@@ -28,21 +29,30 @@ function testProgramJs(src:string, expectedJs:string) {
 }
 
 function testProgramEvalJs(src:string, expectedResult:any) {
-	var grammarResult = grammar.match(src, lang_grammar._stms);
+	let grammarResult = grammar.match(src, lang_grammar._stms);
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
 	}
 	if (grammarResult.endOfFile) {
 		throw new Error(`End of file ${grammarResult}`);
 	}
-	var compilerResult = compiler.compile(grammarResult.node);
+	let compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
 		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
 	}
 	
+	let result:any = undefined
+	let code = '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()';
+	try {
+		result = eval(code);
+	} catch (e) {
+		console.log(code);
+		console.error(e);
+	}
+	
 	assert.equal(
 		expectedResult,
-		eval('(function() { ' + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()')
+		result
 	);
 }
 
@@ -63,7 +73,7 @@ describe('test', () => {
 	
 	it('js gen', () => {
 		var mod = new ir.IrModule();
-		var b = new ir.NodeBuilder();
+		var b = new ir.NodeBuilder(mod);
 		var TestClass = mod.createClass('Test');
 		var demoMethod = TestClass.createMethod('demo', false, b.stms([b.ret(b.int(10))]));
 		assert.equal(
@@ -112,5 +122,9 @@ describe('test', () => {
 
 	it('run-while', () => {
 		testProgramEvalJs('var a = 10; var b = 0; while (a > 0) { a--; b += 3; } return b;', 30);
+	});
+	
+	it('run-range', () => {
+		//testProgramEvalJs('return 0 ... 100;', { min: 0, max: 100 });
 	});
 });

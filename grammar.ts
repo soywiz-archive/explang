@@ -1,3 +1,5 @@
+/// <reference path="./defs.d.ts" />
+
 export class TRange {
     public constructor(public min:number, public max:number, public reader:Reader) { }
     static combine(a:TRange, b:TRange):TRange {
@@ -521,8 +523,6 @@ export function ref() { return new GRef(); }
 export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode<PsiElement>>) {
     return new GList(tok(element), tok(separator), min, clazz);
 }
-
-interface Class<T> { new(...args:any[]):T; }
 
 //console.log(_if.match(new ReaderContext(new Reader('if ((1)) 1; else 1;'))));
 //console.log(_stms.match(new ReaderContext(new Reader('var a; var b; function test() {}'))));

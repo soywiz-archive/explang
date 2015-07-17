@@ -1,17 +1,19 @@
+/// <reference path="./defs.d.ts" />
+
 import ir = require('./ir_ast');
 import lang = require('./lang_ast');
 import { ResolverItem, Resolver, LocalResolver } from './ir_ast';
-var b = new ir.NodeBuilder();
-
 
 class Compiler {
 	private mod = new ir.IrModule();
+	private b:ir.NodeBuilder;
 	private clazz:ir.IrClass;
 	private method:ir.IrMethod;
 	public result = new CompileResult();
 
 	constructor() {
 		this.result.module = this.mod;
+		this.b = new ir.NodeBuilder(this.mod);
 	}
 	
 	private error(e:lang.PsiElement, msg:string) {
@@ -29,6 +31,7 @@ class Compiler {
 	}
 
 	private ensureMethod() {
+		let b = this.b;
 		this.ensureClass();
 		if (this.method == null) {
 			this.method = this.clazz.createMethod('main', true, b.stms([]));
@@ -36,6 +39,7 @@ class Compiler {
 	}
 	
 	expr(e:lang.PsiElement, resolver:LocalResolver):ir.Expression {
+		let b = this.b;
 		if (e == null) return null;
 		if (e.text == '') return null;
 		
@@ -65,6 +69,8 @@ class Compiler {
 	}
 	
 	stm(e:lang.PsiElement, resolver:LocalResolver):ir.Statement {
+		let b = this.b;
+
 		if (e == null) return null;
 		if (e.text == '') return null;
 		
@@ -94,6 +100,8 @@ class Compiler {
 	}
 	
 	compile(e:lang.PsiElement) {
+		let b = this.b;
+
 		if (e == null) return;
 		
 		if (e instanceof lang.Class) {
