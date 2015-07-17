@@ -106,6 +106,10 @@ export class Expression extends Node {
 }
 export class Statement extends Node { }
 
+export class LeftValue extends Expression {
+	
+}
+
 export class BinOpNode extends Expression {
 	public constructor(type:Type, public op:string, public l:Expression, public r:Expression) {
 		super(type);
@@ -193,15 +197,9 @@ export class CallExpression extends Expression {
 	}
 }
 
-export class IdExpression extends Expression {
+export class IdExpression extends LeftValue {
 	public constructor(public id:string, type:Type) {
 		super(type);
-	}
-}
-
-export class AssignExpression extends Expression {
-	constructor(public left:Expression, public right:Expression) {
-		super(right.type);
 	}
 }
 
@@ -255,6 +253,6 @@ export class NodeBuilder {
 	}
 	id(id:string, type:Type) { return new IdExpression(id, type); }
 	assign(left:Expression, right:Expression) {
-		return new AssignExpression(left, right);
+		return new BinOpNode(right.type, '=', left, right);
 	}
 }

@@ -102,5 +102,6 @@ describe('test', () => {
 		//testProgramJs('var a = 10; return a;', '');
 		testProgramEvalJs('var a = 10; return a;', 10);
 		testProgramEvalJs('var a = 10, b = 3; return a * b;', 30);
+		testProgramEvalJs('var a = 10; a = 7; return a;', 7);
 	});
 });

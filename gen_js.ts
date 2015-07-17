@@ -48,7 +48,6 @@ class Generator {
             return;
         }
 		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
-		if (node instanceof ir.AssignExpression) return this.w.action(this.generateNode(node.left)).write(' = ').action(this.generateNode(node.right));
 		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
 		if (node instanceof ir.CallExpression) {
 			this.w.action(this.generateNode(node.left));
