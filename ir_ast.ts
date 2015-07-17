@@ -111,8 +111,15 @@ export class Statements extends Node {
 	}
 }
 
+export class IfNode extends Node {
+	public constructor(public e:Node, public t:Node, public f:Node) {
+		super();
+	}
+}
+
 export class NodeBuilder {
 	stms(list:Node[]) { return new Statements(list); }
 	ret(expr?:Node) { return new ReturnNode(expr); }
 	int(value:number) { return new ImmediateNode(Types.Int, value | 0); }
+	_if(e:Node, t:Node, f:Node) { return new IfNode(e, t, f); }
 }

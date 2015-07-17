@@ -5,10 +5,25 @@ import lang_grammar = require('../lang_grammar');
 import lang_services = require('../lang_services');
 import gen_js = require('../gen_js');
 import ir = require('../ir_ast');
-import ast_lang_to_ir = require('../ast_lang_to_ir');
+import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
 
 var grammar = new _grammar.Grammar();
+
+function testProgramJs(src:string, expectedJs:string) {
+	var grammarResult = grammar.match(src, lang_grammar._stms);
+	if (!grammarResult.matched) {
+		throw new Error(`Not matched ${grammarResult}`);
+	}
+	var compilerResult = compiler.compile(grammarResult.node);
+	if (compilerResult.errors.length > 0) {
+		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
+	}
+	assert.equal(
+		expectedJs,
+		gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim()
+	);
+}
 
 describe('test', () => {
 	it('simple match', () => {
@@ -35,15 +50,18 @@ describe('test', () => {
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
 		);
 	});
+
+	it('compile', () => {
+		testProgramJs(
+			'class Test123 { }',
+			"var Test123 = (function () { function Test123 () { } return Test123 ; })();"
+		);
+	});
 	
-	it('convert', () => {
-		var conv = new ast_lang_to_ir.Converter();
-		var result = grammar.match('class Test123 { }', lang_grammar._stms);
-		conv.convert(result.node);
-		var mod = conv.getModule();
-		assert.equal(
-			"var Test123 = (function () { function Test123 () { } return Test123 ; })();",
-			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
+	it('compile2', () => {
+		testProgramJs(
+			'return;',
+			"var Main = (function () { function Main() { } Main.prototype.main = function() { return ; }; return Main; })();"
 		);
 	});
 });
