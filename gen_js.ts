@@ -1,8 +1,7 @@
 import ir = require('./ir_ast');
 import { IndentWriter } from './utils';
 
-
-export class Generator {
+class Generator {
 	private w: IndentWriter = new IndentWriter();
 	
 	public toString() {
@@ -47,4 +46,10 @@ export class Generator {
 			this.generateClass(clazz);
 		}
 	}
+}
+
+export function generate(module:ir.IrModule):string {
+	var gen = new Generator();
+	gen.generateModule(module);
+	return gen.toString();
 }

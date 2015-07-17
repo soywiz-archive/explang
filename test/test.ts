@@ -5,6 +5,7 @@ import lang_grammar = require('../lang_grammar');
 import lang_services = require('../lang_services');
 import gen_js = require('../gen_js');
 import ir = require('../ir_ast');
+import ast_lang_to_ir = require('../ast_lang_to_ir');
 import assert = require("assert"); // node.js core module
 
 var grammar = new _grammar.Grammar();
@@ -25,15 +26,24 @@ describe('test', () => {
 	});
 	
 	it('js gen', () => {
-		var gen = new gen_js.Generator();
 		var mod = new ir.IrModule();
 		var b = new ir.NodeBuilder();
 		var TestClass = mod.createClass('Test');
-		var demoMethod = TestClass.createMethod('demo', b.ret(b.imm(10)));
-		gen.generateModule(mod);
+		var demoMethod = TestClass.createMethod('demo', b.ret(b.int(10)));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
-			gen.toString().replace(/\s+/mgi, ' ').trim()
+			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
+		);
+	});
+	
+	it('convert', () => {
+		var conv = new ast_lang_to_ir.Converter();
+		var result = grammar.match('class Test123 { }', lang_grammar._stms);
+		conv.convert(result.node);
+		var mod = conv.getModule();
+		assert.equal(
+			"var Test123 = (function () { function Test123 () { } return Test123 ; })();",
+			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
 		);
 	});
 });

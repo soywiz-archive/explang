@@ -97,12 +97,11 @@ export class ReturnNode extends Node {
 }
 
 export class ImmediateNode extends Node {
-	constructor(public value:any) {
+	constructor(public type:Type, public value:any) {
 		super();
 	}
 	getType():Type {
-		// @TODO: proper type
-		return Types.Int;
+		return this.type;
 	}
 }
 
@@ -115,5 +114,5 @@ export class Statements extends Node {
 export class NodeBuilder {
 	stms(list:Node[]) { return new Statements(list); }
 	ret(expr?:Node) { return new ReturnNode(expr); }
-	imm(value:any) { return new ImmediateNode(value); }
+	int(value:number) { return new ImmediateNode(Types.Int, value | 0); }
 }

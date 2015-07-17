@@ -1,8 +1,27 @@
-import _ir = require('./ir_ast');
-import _lang = require('./lang_ast');
+import ir = require('./ir_ast');
+import lang = require('./lang_ast');
 
-// Work on this after 
-function convert(code:_lang.PsiElement):_ir.IrModule {
-	throw 'Must implement convert';
-	return new _ir.IrModule();
+export class Converter {
+	private mod = new ir.IrModule();
+
+	constructor() {
+		
+	}
+	
+	convert(e:lang.PsiElement) {
+		if (e instanceof lang.Stms) {
+			for (let c of e.elements) this.convert(c);
+			return;
+		}
+		if (e instanceof lang.Class) {
+			var name = e.idwg.text;
+			var clazz = this.mod.createClass(name);
+			return;
+		}
+		throw `Unhandled ${e.type}`;
+	}
+	
+	getModule() {
+		return this.mod;
+	}
 }
