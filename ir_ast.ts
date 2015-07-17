@@ -77,7 +77,8 @@ export class Expression extends Node { }
 export class Statement extends Node { }
 
 export class BinOpNode extends Expression {
-	public constructor(public type:Type, public op:string, public l:Node, public r:Node) {
+	//public constructor(public type:Type, public op:string, public l:Node, public r:Node) {
+    public constructor(public op:string, public l:Node, public r:Node) {
 		super();
 	}
 	
@@ -85,7 +86,7 @@ export class BinOpNode extends Expression {
 		//l.get
 	}
 
-	getType():Type { return this.type; }
+	getType():Type { return this.l.getType(); }
 }
 
 export class ReturnNode extends Statement {
@@ -146,6 +147,26 @@ export class IdExpression extends Expression {
 	}
 }
 
+/*
+var oops = [
+    ["%"],
+    ["*", "/"],
+    ["+", "-"],
+    ["<<", ">>", ">>>"],
+    ["|", "&", "^"],
+    ["==", "!=", ">", "<", ">=", "<="],
+    ["..."],
+    ["&&"],
+    ["||"],
+    ["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^="],
+];
+*/
+var opsPriority = ['*', '/', '%', '+', '-'];
+
+function getPriority(op:string) {
+    return opsPriority.indexOf(op);
+}
+
 export class NodeBuilder {
 	stms(list:Statement[]) { return new Statements(list); }
 	ret(expr?:Expression) { return new ReturnNode(expr); }
@@ -155,7 +176,21 @@ export class NodeBuilder {
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
 	binops(operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
-		throw new Error("Not implemented binary operators");
+        var prev = exprs.shift();
+        var prevPriority:number = 0;
+        for (let op of operators) {
+            let next = exprs.shift();
+            let nextPriority = getPriority(op);
+            if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
+                var pbop = <BinOpNode>prev;
+                prev = new BinOpNode(pbop.op, pbop.l, new BinOpNode(op, pbop.r, next))
+            } else {
+                prev = new BinOpNode(op, prev, next);
+            }
+            prevPriority = nextPriority;
+        }
+
+        return prev;
 	}
 	id(id:string) { return new IdExpression(id); }
 }

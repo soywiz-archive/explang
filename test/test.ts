@@ -87,7 +87,14 @@ describe('test', () => {
 		);
 	});
 
-	it('run1', () => {
+    it('run1', () => {
 		testProgramEvalJs('return 10;', 10);
+	});
+
+	it('run2', () => {
+		testProgramEvalJs('return 10 + 2;', 10 + 2);
+        testProgramEvalJs('return 10 * 2;', 10 * 2);
+        testProgramEvalJs('return 3 * 5 + 7;', 3 * 5 + 7);
+        testProgramEvalJs('return 3 + 5 * 7;', 3 + 5 * 7);
 	});
 });

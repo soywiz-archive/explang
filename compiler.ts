@@ -45,7 +45,7 @@ class Compiler {
 		} else if (e instanceof lang.ExpressionStm) {
 			return b.exprstm(this.compnode(e.expression));
 		} else if (e instanceof lang.BinaryOpList) {
-			return b.binops(e.operatorsRaw.map(e => e.text), e.children.map(child => this.compnode(child)));
+			return b.binops(e.operatorsRaw.map(e => e.text), e.expressions.map(child => this.compnode(child)));
 		} else if (e instanceof lang.CallOrArrayAccess) {
 			var out = this.compnode(e.left);
 			for (let part of e.parts) {

@@ -40,6 +40,9 @@ export class Stms extends ListGrammarNode<PsiElement> {
 }
 
 export class BinaryOpList extends ListGrammarNode<PsiElement> {
+    public get expressions() {
+        return this.children.filter(c => !(c instanceof UnmatchGrammarNode));
+    }
     public get operatorsRaw() {
         return this.separators;
     }

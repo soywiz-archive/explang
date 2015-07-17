@@ -13,6 +13,22 @@ class Generator {
 		
 		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
 		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
+        if (node instanceof ir.BinOpNode) {
+            let type = node.getType();
+            switch (type) {
+                case ir.Types.Int:
+                    this.w.write('((');
+                    this.w.action(this.generateNode(node.l));
+                    this.w.write(` ${node.op} `);
+                    this.w.action(this.generateNode(node.r));
+                    this.w.write(')|0)');
+                    break;
+                default:
+                    throw new Error(`Unhandled type ${type}`);
+            }
+            //return this.w.write(`${node.value}`);
+            return;
+        }
 		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
 		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
 		if (node instanceof ir.CallExpression) {
