@@ -18,9 +18,20 @@ class Generator {
             switch (type) {
                 case ir.Types.Int:
                     this.w.write('((');
-                    this.w.action(this.generateNode(node.l));
-                    this.w.write(` ${node.op} `);
-                    this.w.action(this.generateNode(node.r));
+                    switch (node.op) {
+                        case '**':
+                            this.w.write(`Math.pow(`);
+                            this.w.action(this.generateNode(node.l));
+                            this.w.write(`,`);
+                            this.w.action(this.generateNode(node.r));
+                            this.w.write(`)`);
+                            break;
+                        default:
+                            this.w.action(this.generateNode(node.l));
+                            this.w.write(` ${node.op} `);
+                            this.w.action(this.generateNode(node.r));
+                            break;
+                    }
                     this.w.write(')|0)');
                     break;
                 default:

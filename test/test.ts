@@ -96,5 +96,6 @@ describe('test', () => {
         testProgramEvalJs('return 10 * 2;', 10 * 2);
         testProgramEvalJs('return 3 * 5 + 7;', 3 * 5 + 7);
         testProgramEvalJs('return 3 + 5 * 7;', 3 + 5 * 7);
+        testProgramEvalJs('return 2 ** 8;', Math.pow(2, 8));
 	});
 });

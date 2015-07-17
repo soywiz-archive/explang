@@ -147,25 +147,28 @@ export class IdExpression extends Expression {
 	}
 }
 
-/*
 var oops = [
+    ["**"],
     ["%"],
     ["*", "/"],
     ["+", "-"],
     ["<<", ">>", ">>>"],
     ["|", "&", "^"],
-    ["==", "!=", ">", "<", ">=", "<="],
+    ["<=>", "==", "!=", ">", "<", ">=", "<="],
     ["..."],
     ["&&"],
     ["||"],
     ["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^="],
 ];
-*/
-var opsPriority = ['*', '/', '%', '+', '-'];
+var priorityOps:{ [op:string]:number; } = {};
 
-function getPriority(op:string) {
-    return opsPriority.indexOf(op);
+for (var priority = 0; priority < oops.length; priority++) {
+    let oop = oops[priority];
+    for (let op of oop) {
+        priorityOps[op] = priority + 1;
+    }
 }
+
 
 export class NodeBuilder {
 	stms(list:Statement[]) { return new Statements(list); }
@@ -180,7 +183,7 @@ export class NodeBuilder {
         var prevPriority:number = 0;
         for (let op of operators) {
             let next = exprs.shift();
-            let nextPriority = getPriority(op);
+            let nextPriority = priorityOps[op] || 9999;
             if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
                 var pbop = <BinOpNode>prev;
                 prev = new BinOpNode(pbop.op, pbop.l, new BinOpNode(op, pbop.r, next))
