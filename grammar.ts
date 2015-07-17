@@ -210,6 +210,10 @@ export class PsiElement {
         }
     }
     
+    get root():PsiElement {
+        return this.parent ? this.parent.root : this;
+    }
+    
     static create<T extends PsiElement>(clazz:Class<T>, file:PsiFile, range:TRange, children:PsiElement[] = []):T {
         return new clazz(file, range, children);
     }
@@ -227,8 +231,15 @@ export class PsiElement {
     get first() { return this.children.length ? this.children[0] : null; }
     get last() { return this.children.length ? this.children[this.children.length - 1] : null; }
  
-   as<T extends PsiElement>(clazz:Class<T>) {
+    as<T extends PsiElement>(clazz:Class<T>) {
         return <T>this;
+    }
+    
+    dump(pad:string = '') {
+        console.log(pad + this.type + ': ' + this.text);
+        for (let child of this.children) {
+            child.dump(pad + '  ');
+        }
     }
 }
 
@@ -245,6 +256,7 @@ export class UnmatchGrammarNode extends PsiElement {
 
 export class GrammarResult {
     public name:string = null;
+    public endOfFile:boolean = false;
     public constructor(public matched:Boolean, public node:PsiElement) {
     }
     get text() {
@@ -477,7 +489,12 @@ export class GList extends GBase {
 
 export class Grammar {
 	match(str:string, root:GBase):GrammarResult {
-        return root.match(new ReaderContext(new Reader(str)));
+        let rc = new ReaderContext(new Reader(str));
+        let result = root.match(rc);
+        if (!rc.reader.eof) {
+            result.endOfFile = true;
+        }
+        return result;
     }
 }
 

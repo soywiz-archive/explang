@@ -31,10 +31,10 @@ var _binop = _any([
     '+', '-', '/', '*', '%', '&', '|', '^', '<', '>',
  ]);
 
-var _access1 = seq(['.', sure(), _id]);
-var _access2 = seq(['?.', sure(), _id]);
-var _access3 = seq(['[', sure(), _expr, ']']);
-var _access4 = seq(['(', sure(), list(_expr, ','), ')']);
+var _access1 = seq(['.', sure(), _id], ast.AccessField);
+var _access2 = seq(['?.', sure(), _id], ast.AccessFieldOpt);
+var _access3 = seq(['[', sure(), _expr, ']'], ast.AccessArray);
+var _access4 = seq(['(', sure(), list(_expr, ','), ')'], ast.AccessCall);
 var _access = _any([_access1, _access2, _access3, _access4, '++', '--']);
 
 _expr1.set(_any([
@@ -45,7 +45,7 @@ _expr1.set(_any([
 ])); 
 
 _expr2.set(_any([
-    seq([_expr1, list(_access, null, 0)]),
+    seq([_expr1, list(_access, null, 0)], ast.CallOrArrayAccess), // callOrArrayAccess
 ]));
 
 var _func_arg = seq([_id, opt(seq([':', _typedecl])), opt(seq(['=', _expr]))]);
@@ -106,5 +106,5 @@ _stm.set(_any([
     _continue,
     _break,
     _fallthrough,
-    seq([_expr, ';']),
+    seq([_expr, ';'], ast.ExpressionStm),
 ]));

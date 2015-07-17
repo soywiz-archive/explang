@@ -12,7 +12,19 @@ class Generator {
 		if (node == null) return;
 		
 		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
-		if (node instanceof ir.ImmediateNode) return this.w.write(`${node.value}`);
+		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
+		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
+		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
+		if (node instanceof ir.CallExpression) {
+			this.w.action(this.generateNode(node.left));
+			this.w.write('(');
+			for (var n = 0; n < node.args.length; n++) {
+				if (n != 0) this.w.write(', ');
+				this.w.action(this.generateNode(node.args[n]));
+			}
+			this.w.write(')');
+			return this.w;
+		}
 		
 		throw new Error(`Unhandled node ${node}`);
 	}
@@ -20,7 +32,11 @@ class Generator {
     protected generateMethod(method:ir.IrMethod) {
 		var name = method.name;
         var className = method.containingClass.name;
-		this.w.writeln(`${className}.prototype.${name} = function() {`);
+		if (method.isStatic) {
+			this.w.writeln(`${className}.${name} = function() {`);
+		} else {
+			this.w.writeln(`${className}.prototype.${name} = function() {`);
+		}
 		this.w.indent(() => {
 			this.generateNode(method.body);
 		});

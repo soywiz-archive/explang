@@ -15,6 +15,9 @@ function testProgramJs(src:string, expectedJs:string) {
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
 	}
+	if (grammarResult.endOfFile) {
+		throw new Error(`End of file ${grammarResult}`);
+	}
 	var compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
 		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
@@ -22,6 +25,25 @@ function testProgramJs(src:string, expectedJs:string) {
 	assert.equal(
 		expectedJs,
 		gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim()
+	);
+}
+
+function testProgramEvalJs(src:string, expectedResult:any) {
+	var grammarResult = grammar.match(src, lang_grammar._stms);
+	if (!grammarResult.matched) {
+		throw new Error(`Not matched ${grammarResult}`);
+	}
+	if (grammarResult.endOfFile) {
+		throw new Error(`End of file ${grammarResult}`);
+	}
+	var compilerResult = compiler.compile(grammarResult.node);
+	if (compilerResult.errors.length > 0) {
+		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
+	}
+	
+	assert.equal(
+		expectedResult,
+		eval('(function() { ' + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()')
 	);
 }
 
@@ -44,7 +66,7 @@ describe('test', () => {
 		var mod = new ir.IrModule();
 		var b = new ir.NodeBuilder();
 		var TestClass = mod.createClass('Test');
-		var demoMethod = TestClass.createMethod('demo', b.ret(b.int(10)));
+		var demoMethod = TestClass.createMethod('demo', false, b.ret(b.int(10)));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
@@ -61,7 +83,11 @@ describe('test', () => {
 	it('compile2', () => {
 		testProgramJs(
 			'return;',
-			"var Main = (function () { function Main() { } Main.prototype.main = function() { return ; }; return Main; })();"
+			"var Main = (function () { function Main() { } Main.main = function() { return ; }; return Main; })();"
 		);
+	});
+
+	it('run1', () => {
+		testProgramEvalJs('return 10;', 10);
 	});
 });

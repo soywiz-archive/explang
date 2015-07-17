@@ -30,7 +30,7 @@ class Compiler {
 	private ensureMethod() {
 		this.ensureClass();
 		if (this.method == null) {
-			this.method = this.clazz.createMethod('main', b.ret());
+			this.method = this.clazz.createMethod('main', true, b.ret());
 		}
 	}
 	
@@ -40,13 +40,31 @@ class Compiler {
 		
 		if (e instanceof lang.If) {
 			return b._if(this.compnode(e.expr), this.compnode(e.codeTrue), this.compnode(e.codeFalse));
-		}
-		
-		if (e instanceof lang.Return) {
+		} else if (e instanceof lang.Return) {
 			return b.ret(this.compnode(e.expr));
+		} else if (e instanceof lang.ExpressionStm) {
+			return b.exprstm(this.compnode(e.expression));
+		} else if (e instanceof lang.BinaryOpList) {
+			return b.binops(e.operatorsRaw.map(e => e.text), e.children.map(child => this.compnode(child)));
+		} else if (e instanceof lang.CallOrArrayAccess) {
+			var out = this.compnode(e.left);
+			for (let part of e.parts) {
+				if (part instanceof lang.AccessCall) {
+					out = b.call(out, part.args.map(arg => this.compnode(arg)));
+				} else {
+					e.root.dump();
+					throw `Unhandled compnode2 ${part.type} : '${part.text}'`;
+				}
+			}
+			return out;
+		} else if (e instanceof lang.Id) {
+			return b.id(e.text);
+		} else if (e instanceof lang.Int) {
+			return b.int(parseInt(e.text));
+		} else {
+			e.root.dump();
+			throw `Unhandled compnode ${e.type} : '${e.text}'`;
 		}
-		
-		throw `Unhandled ${e.type} : '${e.text}'`;
 	}
 	
 	compile(e:lang.PsiElement) {

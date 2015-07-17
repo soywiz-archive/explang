@@ -12,7 +12,7 @@ export class IrMember {
 }
 
 export class IrMethod extends IrMember {
-	public constructor(public name:string, public containingClass:IrClass, public body:Node) {
+	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Node) {
 		super(name, containingClass);
 		containingClass.methods.push(this);
 	}
@@ -34,8 +34,8 @@ export class IrClass {
 		module.classes.push(this);
 	}
 	
-	createMethod(name:string, body:Node) {
-		return new IrMethod(name, this, body);
+	createMethod(name:string, isStatic:boolean, body:Node) {
+		return new IrMethod(name, isStatic, this, body);
 	}
 }
 
@@ -64,10 +64,19 @@ export class Types {
 }
 
 export class Node {
-	getType():Type { throw 'Must override'; }
+	getType():Type { throw 'Must override'; }    
+	get nodeKind() {
+        return '' + (<any>this.constructor).name;
+    }
+	toString() {
+		return this.nodeKind;
+	}
 } 
 
-export class BinOpNode extends Node {
+export class Expression extends Node { }
+export class Statement extends Node { }
+
+export class BinOpNode extends Expression {
 	public constructor(public type:Type, public op:string, public l:Node, public r:Node) {
 		super();
 	}
@@ -79,8 +88,8 @@ export class BinOpNode extends Node {
 	getType():Type { return this.type; }
 }
 
-export class ReturnNode extends Node {
-	public constructor(public optValue?:Node) {
+export class ReturnNode extends Statement {
+	public constructor(public optValue?:Expression) {
 		super();
 	}
 	
@@ -96,7 +105,7 @@ export class ReturnNode extends Node {
 	}
 }
 
-export class ImmediateNode extends Node {
+export class ImmediateExpression extends Expression {
 	constructor(public type:Type, public value:any) {
 		super();
 	}
@@ -105,21 +114,48 @@ export class ImmediateNode extends Node {
 	}
 }
 
-export class Statements extends Node {
+
+
+export class Statements extends Statement {
 	public constructor(public nodes:Node[]) {
 		super();
 	}
 }
 
-export class IfNode extends Node {
+export class ExpressionStm extends Statement {
+	public constructor(public expression:Expression) {
+		super();
+	}
+}
+
+export class IfNode extends Statement {
 	public constructor(public e:Node, public t:Node, public f:Node) {
 		super();
 	}
 }
 
+export class CallExpression extends Expression {
+	constructor(public left:Expression, public args:Expression[]) {
+		super();
+	}
+}
+
+export class IdExpression extends Expression {
+	public constructor(public id:string) {
+		super();
+	}
+}
+
 export class NodeBuilder {
-	stms(list:Node[]) { return new Statements(list); }
-	ret(expr?:Node) { return new ReturnNode(expr); }
-	int(value:number) { return new ImmediateNode(Types.Int, value | 0); }
-	_if(e:Node, t:Node, f:Node) { return new IfNode(e, t, f); }
+	stms(list:Statement[]) { return new Statements(list); }
+	ret(expr?:Expression) { return new ReturnNode(expr); }
+	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
+	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
+	call(left:Expression, args:Expression[]) { return new CallExpression(left, args); }
+	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
+	binops(operators:string[], exprs:Expression[]) {
+		if (exprs.length == 1) return exprs[0];
+		throw new Error("Not implemented binary operators");
+	}
+	id(id:string) { return new IdExpression(id); }
 }

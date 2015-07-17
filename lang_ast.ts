@@ -27,13 +27,41 @@ export class VarDecls extends PsiElement {
 export class BinaryOp extends PsiElement {
 }
 
+export class ExpressionStm extends ListGrammarNode<PsiElement> {
+    get expression():PsiElement {
+        return this.children[0].as(PsiElement);
+    }
+}
+
 export class Stms extends ListGrammarNode<PsiElement> {
-    
+    get stms():PsiElement[] {
+        return this.children;
+    }
 }
 
 export class BinaryOpList extends ListGrammarNode<PsiElement> {
     public get operatorsRaw() {
         return this.separators;
+    }
+}
+
+export class AccessField extends ListGrammarNode<PsiElement> { }
+export class AccessFieldOpt extends ListGrammarNode<PsiElement> { }
+export class AccessArray extends ListGrammarNode<PsiElement> {
+}
+export class AccessCall extends ListGrammarNode<PsiElement> {
+    public get args() {
+        return this.children[1].children;
+    }
+}
+
+export class CallOrArrayAccess extends ListGrammarNode<PsiElement> {
+    get left() {
+        return this.children[0];
+    }
+
+    get parts():PsiElement[] {
+        return this.children[1].children;
     }
 }
 
