@@ -48,7 +48,7 @@ class Compiler {
 					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
 				} else {
 					e.root.dump();
-					throw `Unhandled compnode2 ${part.type} : '${part.text}'`;
+					throw `Unhandled expr-part ${part.type} : '${part.text}'`;
 				}
 			}
 			return out;
@@ -59,7 +59,7 @@ class Compiler {
 		}
 		
 		e.root.dump();
-		throw `Unhandled compexpr ${e.type} : '${e.text}'`;
+		throw `Unhandled expr ${e.type} : '${e.text}'`;
 	}
 	
 	stm(e:lang.PsiElement, resolver:LocalResolver):ir.Statement {
@@ -80,10 +80,13 @@ class Compiler {
 			var local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
 			resolver.add(local);
 			return b.exprstm(b.assign(b.id(local.name, initValue.type), initValue));
+		} else if (e instanceof lang.Stms) {
+			var scopeResolver = new LocalResolver(resolver);
+			return b.stms(e.stms2.map(c => this.stm(c, scopeResolver)));
 		}
 		
 		e.root.dump();
-		throw `Unhandled compstm ${e.type} : '${e.text}'`;
+		throw `Unhandled stm ${e.type} : '${e.text}'`;
 	}
 	
 	compile(e:lang.PsiElement) {

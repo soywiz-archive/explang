@@ -40,8 +40,9 @@ export class ExpressionStm extends ListGrammarNode<PsiElement> {
 }
 
 export class Stms extends ListGrammarNode<PsiElement> {
-    get stms():PsiElement[] {
-        return this.children;
+    stms:ListGrammarNode<PsiElement>;
+    get stms2():PsiElement[] {
+        return this.stms.elements;
     }
 }
 

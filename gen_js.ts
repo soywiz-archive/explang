@@ -10,6 +10,7 @@ class Generator {
 	
 	protected generateNode(node:ir.Node):any {
 		//console.log(node, node ? node.nodeKind : null);
+		let w = this.w;
 
 		if (node == null) return;
 		if (node instanceof ir.Statements) {
@@ -20,6 +21,18 @@ class Generator {
 		}		
 		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
 		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
+		if (node instanceof ir.IfNode) {
+			this.w.write('if (');
+			this.w.action(this.generateNode(node.e));
+			this.w.write(')');
+			this.w.write('{');
+			this.w.action(this.generateNode(node.t));
+			this.w.write('}');
+			this.w.write('else {');
+			this.w.action(this.generateNode(node.f));
+			this.w.write('}');
+			return;
+		}
         if (node instanceof ir.BinOpNode) {
             let type = node.type;
             switch (type) {

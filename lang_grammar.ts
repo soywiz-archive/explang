@@ -93,7 +93,7 @@ var _function = seq(
 //var _var = seq([opt('lazy'), 'var', sure(), _id, ';']);
 _stm.set(_any([
     ';',
-    seq(['{', _stms, '}']),
+    seq(['{', capture(_stms, 'stms'), '}'], ast.Stms),
     _staticif,
     _if,
     _for,
