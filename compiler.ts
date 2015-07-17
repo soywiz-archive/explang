@@ -30,7 +30,7 @@ class Compiler {
 	private ensureMethod() {
 		this.ensureClass();
 		if (this.method == null) {
-			this.method = this.clazz.createMethod('main', true, b.ret());
+			this.method = this.clazz.createMethod('main', true, b.stms([]));
 		}
 	}
 	
@@ -61,6 +61,13 @@ class Compiler {
 			return b.id(e.text);
 		} else if (e instanceof lang.Int) {
 			return b.int(parseInt(e.text));
+		} else if (e instanceof lang.VarDecls) {
+			return b.stms(e.vars.map(v => this.compnode(v)));
+		} else if (e instanceof lang.VarDecl) {
+			var initExpr = e.initExpr;
+			var initValue = this.compnode(initExpr);
+			var local = this.method.createLocal(e.name.text, initExpr ? initValue.getType() : ir.Types.Unknown);
+			return b.exprstm(b.assign(b.id(local.name), initValue));
 		} else {
 			e.root.dump();
 			throw `Unhandled compnode ${e.type} : '${e.text}'`;
@@ -85,7 +92,8 @@ class Compiler {
 		//if (!this.clazz) this.error(e, `Expecting a class but found ${e.type}`);	
 		
 		this.ensureMethod();
-		this.method.body = this.compnode(e);
+		if (!this.method.body) this.method.body = b.stms([]);
+		this.method.body.add(this.compnode(e));
 	}
 }
 

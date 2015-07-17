@@ -209,7 +209,7 @@ export class PsiElement {
             child.parent = this;
         }
     }
-    
+
     get root():PsiElement {
         return this.parent ? this.parent.root : this;
     }
@@ -224,7 +224,7 @@ export class PsiElement {
     
     get text() { return this.range.text; }
     
-    getChildsOfType<T>(clazz:Class<T>):T[] {
+    getChildrenOfType<T>(clazz:Class<T>):T[] {
         return <T[]><any[]>this.children.filter(c => c instanceof clazz);
     }
     

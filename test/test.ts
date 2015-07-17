@@ -58,15 +58,15 @@ describe('test', () => {
 		assert.equal('var a = 3; var b = 4;', grammar.match('var a = 3; var b = 4;', lang_grammar._stms).text);
 		
 		//var node = grammar.match('if (1 + 1) { }', lang_grammar._stms).node;
-		var node = grammar.match('var a = 100; return a + 2;', lang_grammar._stms).node;
-		lang_services.Services.pass1(node);
+		//var node = grammar.match('var a = 100; return a + 2;', lang_grammar._stms).node;
+		//lang_services.Services.pass1(node);
 	});
 	
 	it('js gen', () => {
 		var mod = new ir.IrModule();
 		var b = new ir.NodeBuilder();
 		var TestClass = mod.createClass('Test');
-		var demoMethod = TestClass.createMethod('demo', false, b.ret(b.int(10)));
+		var demoMethod = TestClass.createMethod('demo', false, b.stms([b.ret(b.int(10))]));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
@@ -97,5 +97,10 @@ describe('test', () => {
         testProgramEvalJs('return 3 * 5 + 7;', 3 * 5 + 7);
         testProgramEvalJs('return 3 + 5 * 7;', 3 + 5 * 7);
         testProgramEvalJs('return 2 ** 8;', Math.pow(2, 8));
+	});
+	
+	it('run3', () => {
+		//testProgramJs('var a = 10; return a;', '');
+		testProgramEvalJs('var a = 10; return a;', 10);
 	});
 });

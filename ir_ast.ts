@@ -11,10 +11,23 @@ export class IrMember {
 	}
 }
 
+export class IrLocal {
+	constructor(public name:string, public type:Type, public method:IrMethod) {
+	}
+}
+
 export class IrMethod extends IrMember {
-	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Node) {
+	locals: IrLocal[] = [];
+	
+	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Statements) {
 		super(name, containingClass);
 		containingClass.methods.push(this);
+	}
+	
+	createLocal(name:string, type:Type) {
+		let local = new IrLocal(name, type, this);
+		this.locals.push(local);
+		return local;
 	}
 }
 
@@ -34,7 +47,7 @@ export class IrClass {
 		module.classes.push(this);
 	}
 	
-	createMethod(name:string, isStatic:boolean, body:Node) {
+	createMethod(name:string, isStatic:boolean, body:Statements) {
 		return new IrMethod(name, isStatic, this, body);
 	}
 }
@@ -61,6 +74,7 @@ export class Types {
 	public static Float = new FloatType();
 	public static Double = new DoubleType();
 	public static String = new StringType();
+	public static Unknown = new StringType();
 }
 
 export class Node {
@@ -120,6 +134,11 @@ export class ImmediateExpression extends Expression {
 export class Statements extends Statement {
 	public constructor(public nodes:Node[]) {
 		super();
+		this.nodes = this.nodes.slice();
+	}
+	
+	add(node:Node) {
+		this.nodes.push(node);
 	}
 }
 
@@ -143,6 +162,12 @@ export class CallExpression extends Expression {
 
 export class IdExpression extends Expression {
 	public constructor(public id:string) {
+		super();
+	}
+}
+
+export class AssignExpression extends Expression {
+	constructor(public left:Expression, public right:Expression) {
 		super();
 	}
 }
@@ -183,7 +208,7 @@ export class NodeBuilder {
         var prevPriority:number = 0;
         for (let op of operators) {
             let next = exprs.shift();
-            let nextPriority = priorityOps[op] || 9999;
+            let nextPriority = priorityOps[op] | 0;
             if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
                 var pbop = <BinOpNode>prev;
                 prev = new BinOpNode(pbop.op, pbop.l, new BinOpNode(op, pbop.r, next))
@@ -196,4 +221,7 @@ export class NodeBuilder {
         return prev;
 	}
 	id(id:string) { return new IdExpression(id); }
+	assign(left:Expression, right:Expression) {
+		return new AssignExpression(left, right);
+	}
 }

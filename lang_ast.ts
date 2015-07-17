@@ -18,10 +18,16 @@ export class VarDecl extends PsiElement {
     public name:Id;
     public init:PsiElement;
     //public vars:Var;
+    
+    public get initExpr():PsiElement {
+        return this.init.children[1];
+    }
 }
 
 export class VarDecls extends PsiElement {
-    public vars:ListGrammarNode<VarDecl>;
+    public get vars():VarDecl[] {
+        return this.children[2].getChildrenOfType(VarDecl);
+    }
 }
 
 export class BinaryOp extends PsiElement {

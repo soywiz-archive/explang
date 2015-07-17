@@ -9,8 +9,15 @@ class Generator {
 	}
 	
 	protected generateNode(node:ir.Node):any {
+		//console.log(node, node ? node.nodeKind : null);
+
 		if (node == null) return;
-		
+		if (node instanceof ir.Statements) {
+			for (let c of node.nodes) {
+				this.generateNode(c);
+			}
+			return;
+		}		
 		if (node instanceof ir.ReturnNode) return this.w.write('return ').action(this.generateNode(node.optValue)).write(';').ln();
 		if (node instanceof ir.ImmediateExpression) return this.w.write(`${node.value}`);
         if (node instanceof ir.BinOpNode) {
@@ -41,6 +48,7 @@ class Generator {
             return;
         }
 		if (node instanceof ir.IdExpression) return this.w.write(`${node.id}`);
+		if (node instanceof ir.AssignExpression) return this.w.action(this.generateNode(node.left)).write(' = ').action(this.generateNode(node.right));
 		if (node instanceof ir.ExpressionStm) return this.w.action(this.generateNode(node.expression)).writeln(';');
 		if (node instanceof ir.CallExpression) {
 			this.w.action(this.generateNode(node.left));
@@ -65,6 +73,14 @@ class Generator {
 			this.w.writeln(`${className}.prototype.${name} = function() {`);
 		}
 		this.w.indent(() => {
+			for (let local of method.locals) {
+				this.w.write('var ' + local.name);
+				switch (local.type) {
+					case ir.Types.Int: this.w.write(' = 0'); break;
+					default: throw new Error("Unhandled type " + local.type);
+				}
+				this.w.write(';').ln();
+			}
 			this.generateNode(method.body);
 		});
 		this.w.writeln(`};`);

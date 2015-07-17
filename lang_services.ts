@@ -58,7 +58,7 @@ export class Services {
 			return;
 		}
 		if (a instanceof ast.VarDecls) {
-			for (let v of a.vars.elements) {
+			for (let v of a.vars) {
 				this.pass1(v);
 			} 
 			//console.log(a.vars);
