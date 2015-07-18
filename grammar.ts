@@ -202,7 +202,7 @@ export class PsiFile {
     }    
 }
 
-export class PsiElementHolder {
+export class PsiNode {
     constructor(public element:PsiElement) { }
 }
 

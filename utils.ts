@@ -34,6 +34,14 @@ export class Utf8Encoder {
 	}
 }
 
+export function classNameOf(v:any):string {
+	let res = typeof v;
+	if (res == 'object') {
+		res = (<any>v.constructor).name;
+	}
+	return res;
+}
+
 export class Writer {
 	buffer = new DataView(new ArrayBuffer(64));
 	position = 0;

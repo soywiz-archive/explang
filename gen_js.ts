@@ -49,11 +49,12 @@ class Generator {
         }
 		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
+		if (e instanceof ir.UnknownExpression) return IndentedString.EMPTY.with(`$unknown$`);
 		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
+		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.name}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);
 		if (e instanceof ir.CallExpression) {
-
 			out = out.with(this.expr(e.left));
 			out = out.with('(');
 			for (var n = 0; n < e.args.length; n++) {
@@ -102,11 +103,18 @@ class Generator {
 		let name = method.name;
         let className = method.containingClass.name;
 		let out = IndentedString.EMPTY;
-		if (method.isStatic) {
-			out = out.with(`${className}.${name} = function() {\n`);
+		let params = method.params.params;
+		if (method.modifiers & ir.IrModifiers.STATIC) {
+			out = out.with(`${className}.${name} = function(`);
 		} else {
-			out = out.with(`${className}.prototype.${name} = function() {\n`);
+			out = out.with(`${className}.prototype.${name} = function(`);
 		}
+		for (let n = 0; n < params.length; n++) {
+			let param = params[n];
+			if (n != 0) out = out.with(', ');
+			out = out.with(param.name);
+		}
+		out = out.with(`) {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
 			for (let local of method.locals) {
@@ -130,7 +138,8 @@ class Generator {
 		out = out.with(`var ${name} = (function () {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
-			out = out.with(`function ${name}() { }\n`);
+			out = out.with(`function ${name}(`);
+			out = out.with(`) { }\n`);
             for (const method of clazz.methods) {
                 out = out.with(this.generateMethod(method));
             }

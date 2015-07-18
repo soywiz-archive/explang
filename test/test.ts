@@ -79,7 +79,7 @@ describe('test', () => {
 		var mod = new ir.IrModule();
 		var b = new ir.NodeBuilder(mod);
 		var TestClass = mod.createClass('Test');
-		var demoMethod = TestClass.createMethod('demo', false, b.stms([b.ret(b.int(10))]));
+		var demoMethod = TestClass.createMethod('demo', ir.Types.Void, ir.IrModifiers.PUBLIC, b.stms([b.ret(b.int(10))]));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
@@ -96,7 +96,7 @@ describe('test', () => {
 	it('compile2', () => {
 		testProgramJs(
 			'return;',
-			"var Main = (function () { function Main() { } Main.main = function() { return ; }; return Main; })();"
+			"var Main = (function () { function Main() { } Main.main = function(argv) { return ; }; return Main; })();"
 		);
 	});
 

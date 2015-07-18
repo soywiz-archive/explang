@@ -51,8 +51,8 @@ _expr2.set(_any([
     seq([_expr1, list(_access, null, 0)], ast.CallOrArrayAccess), // callOrArrayAccess
 ]));
 
-var _func_arg = seq([_id, opt(seq([':', _typedecl])), opt(seq(['=', _expr]))]);
-var _func_args = list(_func_arg, ',');
+var _func_arg = seq([capture('name', _id), capture('typetag', opt(seq([':', _typedecl]))), capture('init', opt(seq(['=', _expr])))], ast.Argument);
+var _func_args = list(_func_arg, ',', 0);
 
 _expr.set(_any([
     seq(['(', _func_args, ')', '=>', sure(), _expr]),
@@ -87,7 +87,7 @@ var _enum = seq(['enum', sure(), _id, '{', '}'], ast.Enum);
 var _vardecl = seq([capture('name', _id), opt(_sc_typetag), capture('init', opt(seq([_any(['=>', '=']), capture('init', _expr)])))], ast.VarDecl);
 var _vars = seq([opt('lazy'), 'var', sure(), capture('vars', list(_vardecl, ',', 1)), ';'], ast.VarDecls);
 var _function = seq([
-    'function', sure(), capture('id_wg', _id_wg), '(', _func_args, ')', capture('typetag', opt(_sc_typetag)), capture('body', _any([
+    'function', sure(), capture('id_wg', _id_wg), '(', capture('args', _func_args), ')', capture('typetag', opt(_sc_typetag)), capture('body', _any([
         seq(['=>', sure(), capture('expr', _expr), ';'], ast.FunctionExpBody),
         seq([capture('stm', _stm)], ast.FunctionStmBody),
     ]))

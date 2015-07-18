@@ -63,16 +63,37 @@ export class IrLocal {
 	}
 }
 
+export class IrParameter implements ResolverItem {
+	constructor(public params:IrParameters, public index:number, public name:string, public type:Type, public init?:Expression) {
+	}
+}
+
+export class IrParameters {
+	public params:IrParameter[] = [];
+	
+	constructor(public method:IrMethod) { }
+	
+	addParam(name:string, type:Type, init?:Expression) {
+		let param = new IrParameter(this, this.params.length, name, type, init);
+		this.params.push(param);
+		return param;
+	}
+}
+
 export class IrMethod extends IrMember {
 	locals: IrLocal[] = [];
 	resolver: LocalResolver;
-
+	params: IrParameters = new IrParameters(this);
 	
-	public constructor(public name:string, public isStatic:boolean, public containingClass:IrClass, public body:Statements) {
+	public constructor(public name:string, public retval:Type, public modifiers:IrModifiers, public containingClass:IrClass, public body:Statements) {
 		super(name, containingClass);
 		containingClass.methods.push(this);
 		containingClass.members.set(name, this);
 		this.resolver = new LocalResolver(null);
+	}
+	
+	addParam(name:string, type:Type, init?:Expression) {
+		return this.params.addParam(name, type, init);
 	}
 	
 	createLocal(name:string, type:Type) {
@@ -90,6 +111,15 @@ export class IrScope {
 	
 }
 
+export enum IrModifiers {
+	PUBLIC = 1 << 0,
+	PRIVATE = 1 << 1,
+	STATIC = 1 << 2,
+	
+	STATIC_PRIVATE = STATIC | PRIVATE,
+	STATIC_PUBLIC = STATIC | PUBLIC,
+}
+
 export class IrClass {
 	public fields:IrField[] = [];
 	public methods:IrMethod[] = [];
@@ -105,22 +135,24 @@ export class IrClass {
 		return this.members.get(name);
 	}
 	
-	createMethod(name:string, isStatic:boolean, body:Statements) {
-		return new IrMethod(name, isStatic, this, body);
+	createMethod(name:string, retval:Type, modifiers:IrModifiers, body:Statements) {
+		return new IrMethod(name, retval, modifiers, this, body);
 	}
 }
 
 export class Type {
+	toString() { return '$TYPE'; }
 }
 
 export class ClassType extends Type {
 	constructor(public clazz:IrClass) {
 		super();
 	}
+	toString() { return this.clazz.name; }
 }
 
 export class PrimitiveType extends Type {
-	constructor(public name:String) { super(); }
+	constructor(public name:string) { super(); }
 	toString() { return this.name; }
 }
 
@@ -138,6 +170,7 @@ export class Types {
 	public static Void = new PrimitiveType('Void');
 	public static Bool = new PrimitiveType('Bool');
 	public static Int = new PrimitiveType('Int');
+	public static Dynamic = new PrimitiveType('Dynamic');
 	public static Long = new PrimitiveType('Long');
 	public static Float = new PrimitiveType('Float');
 	public static Double = new PrimitiveType('Double');
@@ -185,21 +218,26 @@ export class ReturnNode extends Statement {
 	}
 }
 
-export class ImmediateExpression extends Expression {
-	constructor(type:Type, public value:any) {
-		super(type);
-	}
-}
+export class ImmediateExpression extends Expression { constructor(type:Type, public value:any) { super(type); } }
+export class UnknownExpression extends Expression { constructor() { super(Types.Unknown); } }
 
 export interface ResolverItem {
 	type: Type;
 	name: string;
 }
 
+export class UnknownItem {
+	type = Types.Unknown;
+	name = '$unknown$';
+}
+
 export class Resolver {
 	get(name:string):ResolverItem {
 		let result = this._get(name);
-		if (result == null) throw new Error(`Can't find '${name}'`);
+		if (result == null) {
+			console.warn(new Error(`Can't find '${name}'`));
+			return new UnknownItem();
+		}
 		return result;
 	}
 	
@@ -208,11 +246,49 @@ export class Resolver {
 	}
 }
 
+export class ResolverGroup {
+	resolvers: Resolver[] = [];
+	add(resolver: Resolver) {
+		this.resolvers.push(resolver);
+	}
+	get(name:string):ResolverItem {
+		for (let resolver of this.resolvers) {
+			let result = resolver.get(name);
+			if (result != null) return result;
+		}
+		return null;
+	}
+}
+
+export class ParametersResolver extends Resolver {
+	constructor(public params:IrParameters) { super(); }
+	
+	get(name:string) {
+		for (let param of this.params.params) {
+			if (param.name == name) return param;
+		}
+		return null;
+	}
+}
+
+export class MethodResolver extends Resolver {
+	private group = new ResolverGroup();
+	constructor(public method:IrMethod) {
+		super();
+		this.group.add(new ParametersResolver(method.params));
+	}
+	get(name:string) { return this.group.get(name); }
+}
+
 export class LocalResolver extends Resolver {
 	vars: { [key:string]:ResolverItem } = {};
 	
 	constructor(public parent:Resolver) {
 		super();
+	}
+	
+	child() {
+		return new LocalResolver(this);
 	}
 	
 	add(local:ResolverItem) {
@@ -243,6 +319,7 @@ export class IfNode extends Statement { constructor(public e:Expression, public 
 export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
 export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
 export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(local.type); } }
+export class ArgumentExpression extends LeftValue { constructor(public arg:IrParameter) { super(arg.type); } }
 export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(clazz); } }
 export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(member.type); } }
 
@@ -297,6 +374,7 @@ export class NodeBuilder {
 	ret(expr?:Expression) { return new ReturnNode(expr); }
 	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
 	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
+	unknown() { return new UnknownExpression(); }
 	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
 	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
@@ -323,6 +401,7 @@ export class NodeBuilder {
 	}
 	_this(clazz:Type) { return new ThisExpression(clazz); }
 	local(local:IrLocal) { return new LocalExpression(local); }
+	arg(arg:IrParameter) { return new ArgumentExpression(arg); }
 	assign(left:Expression, right:Expression) {
 		return new BinOpNode(right.type, '=', left, right);
 	}

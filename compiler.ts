@@ -1,6 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
 import ir = require('./ir_ast');
+import utils = require('./utils');
 import lang = require('./lang_ast');
 import { ResolverItem, Resolver, LocalResolver } from './ir_ast';
 
@@ -34,7 +35,8 @@ class Compiler {
 		const b = this.b;
 		this.ensureClass();
 		if (this.method == null) {
-			this.method = this.clazz.createMethod('main', true, b.stms([]));
+			this.method = this.clazz.createMethod('main', ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]));
+			this.method.addParam('argv', ir.Types.array(ir.Types.String));
 		}
 	}
 	
@@ -44,10 +46,10 @@ class Compiler {
 			return b._this(this.clazz.type);
 		}
 		var item = resolver.get(id);
-		if (item instanceof ir.IrLocal) {
-			return b.local(item);
-		}
-		throw "Unknown resolution type " + item;
+		if (item instanceof ir.IrLocal) return b.local(item);
+		if (item instanceof ir.IrParameter) return b.arg(item);
+		if (item instanceof ir.UnknownItem) return b.unknown();
+		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
 	expr(e:lang.PsiElement, resolver:LocalResolver):ir.Expression {
@@ -64,8 +66,12 @@ class Compiler {
 					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
 				} else if (part instanceof lang.AccessField) {
 					let member = ir.Types.access(out.type, part.id.text);
-					if (member == null) throw `Can't find member ${part.id.text}`;
-					out = b.access(out, member);
+					if (member == null) {
+						console.warn(`Can't find member ${part.id.text}`);
+						out = b.unknown();
+					} else {
+						out = b.access(out, member);
+					}
 				} else if (part.text == '--') {
 					out = b.unopPost(out, '--');
 				} else {
@@ -101,14 +107,28 @@ class Compiler {
 		} else if (e instanceof lang.VarDecls) {
 			return b.stms(e.vars.map(v => this.stm(v, resolver)));
 		} else if (e instanceof lang.VarDecl) {
-			var initExpr = e.initExpr;
-			var initValue = this.expr(initExpr, resolver);
-			var local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
+			let initExpr = e.initExpr;
+			let initValue = this.expr(initExpr, resolver);
+			let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
 			resolver.add(local);
 			return b.exprstm(b.assign(b.local(local), initValue));
 		} else if (e instanceof lang.Stms) {
-			var scopeResolver = new LocalResolver(resolver);
+			let scopeResolver = new LocalResolver(resolver);
 			return b.stms(e.stms2.map(c => this.stm(c, scopeResolver)));
+		} else if (e instanceof lang.Function) {
+			this.ensureClass();
+			let oldMethod = this.method;
+			let methodName = e.id_wg.text;
+			this.method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]))
+			let methodResolver = new ir.MethodResolver(this.method);
+			for (let arg of e.fargs) {
+				this.method.addParam(arg.name.text, ir.Types.Int);
+			}
+			this.method.body = b.stms([this.stm(e.body, new LocalResolver(methodResolver))]);
+			this.method = oldMethod;
+			return b.stms([]);
+		} else if (e instanceof lang.FunctionExpBody) {
+			return b.ret(this.expr(e.expr, resolver));
 		}
 		
 		e.root.dump();

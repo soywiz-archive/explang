@@ -4,7 +4,7 @@ import _grammar = require('./grammar');
 
 export import TRange = _grammar.TRange;
 export import PsiElement = _grammar.PsiElement;
-export import PsiElementHolder = _grammar.PsiElementHolder;
+export import PsiNode = _grammar.PsiNode;
 export import ListGrammarNode = _grammar.ListGrammarNode;
 export import UnmatchGrammarNode = _grammar.UnmatchGrammarNode;
 export import SequenceGrammarNode = _grammar.SequenceGrammarNode;
@@ -37,8 +37,18 @@ export class FunctionStmBody extends PsiElement {
 
 export class Function extends PsiElement {
     id_wg:PsiElement;
+    args:PsiElement;
     typetag:PsiElement = null;
-    body:PsiElement
+    body:PsiElement;
+    get fargs():Argument[] {
+        return this.args.getChildrenOfType(Argument);
+    }
+}
+
+export class Argument extends PsiElement {
+    name:PsiElement;
+    typetag:PsiElement;
+    init:PsiElement;
 }
 
 export class VarDecls extends PsiElement {
