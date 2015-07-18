@@ -30,7 +30,7 @@ function testProgramJs(src:string, expectedJs:string) {
 	);
 }
 
-function testProgramEvalJs(src:string, expectedResult:any) {
+function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {
 	let grammarResult = grammar.match(src, lang_grammar._stms);
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
@@ -44,7 +44,7 @@ function testProgramEvalJs(src:string, expectedResult:any) {
 	}
 	
 	let result:any = undefined
-	let code = '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()';
+	let code = '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(' + JSON.stringify(args) + '); })()';
 	try {
 		result = eval(code);
 	} catch (e) {
@@ -145,5 +145,9 @@ describe('test', () => {
 
 	it('run-function', () => {
 		testProgramEvalJs('function dup(a:Int) => a * 2; return dup(7);', 14);
+	});
+
+	it('run-args', () => {
+		testProgramEvalJs('return argv[0];', 'a', ['a', 'b']);
 	});
 });

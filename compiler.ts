@@ -73,6 +73,8 @@ class Compiler {
 					} else {
 						out = b.access(out, member);
 					}
+				} else if (part instanceof lang.AccessArray) {
+					out = b.arrayAccess(out, this.expr(part.expr, resolver));
 				} else if (part.text == '--') {
 					out = b.unopPost(out, '--');
 				} else {

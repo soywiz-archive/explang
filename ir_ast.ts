@@ -188,6 +188,11 @@ export class Types {
 	static array(element:Type):ArrayType { return new ArrayType(element); }
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
 	
+	static getElement(type:Type) {
+		if (type instanceof ArrayType) return type.element;
+		return Types.Unknown;
+	}
+	
 	static getReturnType(type:Type):Type {
 		if (type instanceof FunctionType) return type.retval;
 		return type;
@@ -350,6 +355,7 @@ export class MemberExpression extends LeftValue { constructor(public member:IrMe
 export class ArgumentExpression extends LeftValue { constructor(public arg:IrParameter) { super(arg.type); } }
 export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(clazz); } }
 export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(member.type); } }
+export class ArrayAccess extends LeftValue { constructor(public left:Expression, public index:Expression) { super(Types.getElement(left.type)); } }
 
 var oops = [
     ["**"],
@@ -405,6 +411,7 @@ export class NodeBuilder {
 	unknown() { return new UnknownExpression(); }
 	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
 	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
+	arrayAccess(left:Expression, index:Expression) { return new ArrayAccess(left, index); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
 	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
 	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }

@@ -49,6 +49,7 @@ class Generator {
         }
 		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
+		if (e instanceof ir.ArrayAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('[').with(this.expr(e.index)).with(']');
 		if (e instanceof ir.UnknownExpression) return IndentedString.EMPTY.with(`$unknown$`);
 		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
 		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);

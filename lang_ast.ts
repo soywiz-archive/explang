@@ -87,6 +87,7 @@ export class AccessField extends ListGrammarNode<PsiElement> {
 }
 export class AccessFieldOpt extends ListGrammarNode<PsiElement> { }
 export class AccessArray extends ListGrammarNode<PsiElement> {
+    expr: PsiElement;
 }
 export class AccessCall extends ListGrammarNode<PsiElement> {
     public get args() {
