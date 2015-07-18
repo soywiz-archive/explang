@@ -1,6 +1,4 @@
 /// <reference path="./defs.d.ts" />
-
-import  fs = require('fs');
 		
 declare class DataView {
 	buffer:ArrayBuffer;
@@ -10,12 +8,6 @@ declare class DataView {
 	setUint8(offset: number, value: number): void;
 	setUint16(offset: number, value: number, little:boolean): void;
 	setUint32(offset: number, value: number, little:boolean): void;
-}
-
-export class LocalVfs {
-	static write(name:string, data:Uint8Array) {
-		fs.writeFileSync(name, new Buffer(data));
-	}
 }
 
 declare function unescape(s:string):string;

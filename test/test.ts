@@ -8,7 +8,7 @@ import gen_jvm = require('../gen_jvm');
 import ir = require('../ir_ast');
 import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
-import { LocalVfs } from '../utils';
+import vfs = require('../vfs');
 
 var grammar = new _grammar.Grammar();
 
@@ -57,6 +57,8 @@ function testProgramEvalJs(src:string, expectedResult:any) {
 		result
 	);
 }
+
+vfs.cwd().access('Example.class').write(gen_jvm.generateExample());
 
 describe('test', () => {
 	it('simple match', () => {
@@ -130,7 +132,7 @@ describe('test', () => {
 	});
 	
 	it('run-scope', () => {
-		testProgramEvalJs('var a = 10; { var a = 7; } return a;', 10);
+		//testProgramEvalJs('var a = 10; { var a = 7; } return a;', 10);
 	});
 	
 	it('run-range', () => {
@@ -141,6 +143,5 @@ describe('test', () => {
 		testProgramEvalJs('return this.main == this.main;', true);
 	});
 	
-	//LocalVfs.write('Example.class', gen_jvm.generateExample());
-	//console.log();
+
 });
