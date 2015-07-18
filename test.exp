@@ -1,0 +1,4 @@
+
+function dup(a:Int) => a * 2;
+
+return dup(2);

@@ -21,6 +21,10 @@ export class Utf8Encoder {
 		return out;
 	}
 	
+	static decode(data:Uint8Array):string {
+		return this.decode_utf8(String.fromCharCode.apply(null, data));
+	}
+	
 	private static encode_utf8(s:string) {
 		return unescape(encodeURIComponent(s));
 	}

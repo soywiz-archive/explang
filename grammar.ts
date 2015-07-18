@@ -202,6 +202,10 @@ export class PsiFile {
     }    
 }
 
+export class PsiElementHolder {
+    constructor(public element:PsiElement) { }
+}
+
 export class PsiElement {
     public language:Language;
     public parent:PsiElement;
@@ -518,7 +522,7 @@ export function seq(list:anytok[], clazz?:Class<PsiElement>) { return new GSeque
 export function _any(list:anytok[]) { return new GAny(list.map(_tok)); }
 export function opt(v:anytok) { return new GOptional(tok(v)); }
 export function sure() { return new GSure(); }
-export function capture(v: GBase, name:string) { return new GCapture(v, name); }
+export function capture(name:string, v: GBase) { return new GCapture(v, name); }
 export function ref() { return new GRef(); }
 export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode<PsiElement>>) {
     return new GList(tok(element), tok(separator), min, clazz);

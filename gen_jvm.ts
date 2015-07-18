@@ -297,15 +297,14 @@ class MethodBody {
 }
 
 class ExceptionEntry {
-	startPc:number;
-	endPc:number;
-	handlerPc:number;
-	catchType:number;
+	constructor(public startPc:number, public endPc:number, public handlerPc:number, public catchType:ClassInfo) {
+	}
+	
 	write(w:Writer) {
 		w.u16(this.startPc);
 		w.u16(this.endPc);
 		w.u16(this.handlerPc);
-		w.u16(this.catchType);
+		w.u16(this.catchType.index);
 	}
 }
 
@@ -502,7 +501,6 @@ class MethodInfo {
 	}
 }
 
-class ConstantClassInfo extends ConstantEntry { }
 class JvmClass {
 	public pool:ConstantPool = new ConstantPool();
 	public access:ClassAccess = ClassAccess.PUBLIC;

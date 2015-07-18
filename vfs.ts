@@ -1,5 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
+import utils = require('./utils');
+
 declare function require(name:string):any;
 declare class Buffer { constructor(data:any); }
 declare var process:any;
@@ -10,6 +12,9 @@ export class Vfs {
 	}
 	write(path:string, data:Uint8Array) {
 	}
+	read(path:string):Uint8Array {
+		return null;
+	}
 }
 
 export class ProxyVfs extends Vfs {
@@ -17,32 +22,40 @@ export class ProxyVfs extends Vfs {
 		throw 'Must override';
 	}
 	write(path:string, data:Uint8Array) { return this.convert(path).write(data); }
+	read(path:string):Uint8Array { return this.convert(path).read(); }
 }
 
 export class AccessVfs extends ProxyVfs {
 	constructor(public base:VfsFile) { super(); }
-	protected convert(path:string):VfsFile {
-		return this.base.access(path);
-	}
+	protected convert(path:string):VfsFile { return this.base.access(path); }
 }
 
 export class LocalVfs extends Vfs {
-	write(path:string, data:Uint8Array) {
+	private normalizePath(path:string) {
 		if (require('os').platform() == 'win32') path = path.replace(/^\/+/, '');
+		return path;
+	}
+	
+	write(path:string, data:Uint8Array) {
+		path = this.normalizePath(path);
 		console.log('writting', path, data.length);
 		require('fs').writeFileSync(path, new Buffer(data));
+	}
+
+	read(path:string):Uint8Array {
+		path = this.normalizePath(path);
+		console.log('reading', path);
+		return new Uint8Array(require('fs').readFileSync(path));
 	}
 }
 
 export class VfsFile {
 	constructor(public vfs:Vfs, public path:string) {}
-	createVfs() {
-		return new AccessVfs(this);
-	}
-	access(path:string) {
-		return new VfsFile(this.vfs, this.path + '/' + path);
-	}
+	createVfs() { return new AccessVfs(this); }
+	access(path:string) { return new VfsFile(this.vfs, this.path + '/' + path); }
 	write(data:Uint8Array) { return this.vfs.write(this.path, data); }
+	read():Uint8Array { return this.vfs.read(this.path); }
+	readString():string { return utils.Utf8Encoder.decode(this.read()); }
 }
 
 export const local:VfsFile = new LocalVfs().root;
