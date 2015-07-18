@@ -142,6 +142,8 @@ describe('test', () => {
 	it('run-this-access', () => {
 		testProgramEvalJs('return this.main == this.main;', true);
 	});
-	
 
+	it('run-function', () => {
+		testProgramEvalJs('function dup(a:Int) => a * 2; return dup(7);', 14);
+	});
 });

@@ -51,6 +51,7 @@ class Generator {
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
 		if (e instanceof ir.UnknownExpression) return IndentedString.EMPTY.with(`$unknown$`);
 		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
+		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.name}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);

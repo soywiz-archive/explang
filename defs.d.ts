@@ -7,6 +7,7 @@ declare class Set<T> {
 }
 
 declare class Map<K, V> {
+	size:number;
 	get(key:K):V;
 	set(key:K, value:V):V;
 	has(key:K):boolean;

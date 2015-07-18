@@ -49,6 +49,7 @@ class Compiler {
 		if (item instanceof ir.IrLocal) return b.local(item);
 		if (item instanceof ir.IrParameter) return b.arg(item);
 		if (item instanceof ir.UnknownItem) return b.unknown();
+		if (item instanceof ir.IrMethod) return b.member(item);
 		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
@@ -113,19 +114,17 @@ class Compiler {
 			resolver.add(local);
 			return b.exprstm(b.assign(b.local(local), initValue));
 		} else if (e instanceof lang.Stms) {
-			let scopeResolver = new LocalResolver(resolver);
+			let scopeResolver = resolver.child();
 			return b.stms(e.stms2.map(c => this.stm(c, scopeResolver)));
 		} else if (e instanceof lang.Function) {
 			this.ensureClass();
-			let oldMethod = this.method;
 			let methodName = e.id_wg.text;
-			this.method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]))
-			let methodResolver = new ir.MethodResolver(this.method);
+			let method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]))
+			method.bodyNode = e.body;
 			for (let arg of e.fargs) {
-				this.method.addParam(arg.name.text, ir.Types.Int);
+				method.addParam(arg.name.text, ir.Types.Int);
 			}
-			this.method.body = b.stms([this.stm(e.body, new LocalResolver(methodResolver))]);
-			this.method = oldMethod;
+			this.completeMethods.push(method);
 			return b.stms([]);
 		} else if (e instanceof lang.FunctionExpBody) {
 			return b.ret(this.expr(e.expr, resolver));
@@ -135,7 +134,19 @@ class Compiler {
 		throw `Unhandled stm ${e.type} : '${e.text}'`;
 	}
 	
-	compile(e:lang.PsiElement) {
+	private completeMethods:ir.IrMethod[] = [];
+	doCompleteMethods() {
+		let b = this.b;
+		let oldMethod = this.method;
+		while (this.completeMethods.length > 0) {
+			let method = this.completeMethods.shift();
+			this.method = method;
+			method.body = b.stms([this.stm(method.bodyNode, method.resolver)]);
+		}
+		this.method = oldMethod;
+	}
+	
+	_compile(e:lang.PsiElement) {
 		let b = this.b;
 
 		if (e == null) return;
@@ -147,7 +158,7 @@ class Compiler {
 		}
 		
 		if (e instanceof lang.Stms) {
-			for (let c of e.elements) this.compile(c);
+			for (let c of e.elements) this._compile(c);
 			return;
 		}
 
@@ -157,6 +168,11 @@ class Compiler {
 		this.ensureMethod();
 		if (!this.method.body) this.method.body = b.stms([]);
 		this.method.body.add(this.stm(e, this.method.resolver));
+	}
+	
+	compile(e:lang.PsiElement) {
+		this._compile(e);
+		this.doCompleteMethods();
 	}
 }
 
