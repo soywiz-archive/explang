@@ -4,9 +4,11 @@
 import _grammar = require('../grammar');
 import lang_grammar = require('../lang_grammar');
 import gen_js = require('../gen_js');
+import gen_jvm = require('../gen_jvm');
 import ir = require('../ir_ast');
 import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
+import { LocalVfs } from '../utils';
 
 var grammar = new _grammar.Grammar();
 
@@ -134,4 +136,7 @@ describe('test', () => {
 	it('run-this-access', () => {
 		testProgramEvalJs('return this.main == this.main;', true);
 	});
+	
+	LocalVfs.write('Example.class', gen_jvm.generateExample());
+	//console.log();
 });

@@ -177,7 +177,13 @@ export class Statement extends Node { }
 export class LeftValue extends Expression { }
 export class BinOpNode extends Expression { public constructor(type:Type, public op:string, public l:Expression, public r:Expression) { super(type); } }
 export class UnopPost extends Expression { constructor(type:Type, public l:Expression, public op:string) { super(type); } }
-export class ReturnNode extends Statement { public constructor(public optValue?:Expression) { super(); } }
+export class ReturnNode extends Statement {
+	type: Type;
+	public constructor(public optValue?:Expression) {
+		super();
+		this.type = optValue ? optValue.type : Types.Void;
+	}
+}
 
 export class ImmediateExpression extends Expression {
 	constructor(type:Type, public value:any) {
