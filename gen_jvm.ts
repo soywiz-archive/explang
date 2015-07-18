@@ -107,11 +107,13 @@ class MethodBody {
 	private data: Writer = new Writer();
 	private stack: Type[] = [];
 	private maxStack: number = 0;
+	private maxLocals: number = 0;
 	private lines: LineNumberEntry[] = [];
 	
 	get size() { return this.data.length; }
 	
-	constructor(private pool: ConstantPool) {
+	constructor(private pool: ConstantPool, argCount:number) {
+		this.maxLocals = argCount + 1; // this + args
 	}
 
 	private _pop() {
@@ -189,7 +191,7 @@ class MethodBody {
 		var w = new Writer();
 		var code = this.data;
 		w.u16(this.maxStack); // max_stack
-		w.u16(0); // max_locals
+		w.u16(this.maxLocals); // max_locals
 		w.u32(code.length); // code_length
 		w.data(code.toUint8Array());
 		w.u16(this.exceptions.length);
@@ -363,8 +365,10 @@ class FieldInfo {
 
 class MethodInfo {
 	public body: MethodBody;
-	constructor(public pool:ConstantPool, public accessFlags:MethodAccess, public name:Utf8, public descriptor:Utf8) {
-		this.body = new MethodBody(pool);		
+	public descriptor: Utf8;
+	constructor(public pool:ConstantPool, public accessFlags:MethodAccess, public name:Utf8, public type:MethodType) {
+		this.descriptor = this.pool.str(type.toString());
+		this.body = new MethodBody(pool, type.args.length);		
 	}
 	
 	write(w:Writer) {
@@ -407,7 +411,7 @@ class JvmClass {
 	}
 	
 	createMethod(access:MethodAccess, name:string, type:MethodType) {
-		var method = new MethodInfo(this.pool, access, this.pool.str(name), this.pool.str(type.toString()));
+		var method = new MethodInfo(this.pool, access, this.pool.str(name), type);
 		this.methods.push(method);
 		return method;
 	}
