@@ -129,6 +129,10 @@ describe('test', () => {
 		testProgramEvalJs('var a = 10; var b = 0; while (a > 0) { a--; b += 3; } return b;', 30);
 	});
 	
+	it('run-scope', () => {
+		testProgramEvalJs('var a = 10; { var a = 7; } return a;', 10);
+	});
+	
 	it('run-range', () => {
 		//testProgramEvalJs('return 0 ... 100;', { min: 0, max: 100 });
 	});
@@ -137,6 +141,6 @@ describe('test', () => {
 		testProgramEvalJs('return this.main == this.main;', true);
 	});
 	
-	LocalVfs.write('Example.class', gen_jvm.generateExample());
+	//LocalVfs.write('Example.class', gen_jvm.generateExample());
 	//console.log();
 });
