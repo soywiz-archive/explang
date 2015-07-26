@@ -85,8 +85,9 @@ export class IrMethod extends IrMember {
 	params: IrParameters = new IrParameters(this);
 	bodyNode: any;
 	resolver: LocalResolver;
+	body:Statements = new Statements([]);
 	
-	public constructor(public name:string, public retval:Type, public modifiers:IrModifiers, public containingClass:IrClass, public body:Statements) {
+	public constructor(public name:string, public retval:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
 		super(name, containingClass);
 		this.resolver = new LocalResolver(new MethodResolver(this));
 	}
@@ -138,8 +139,8 @@ export class IrClass {
 		return this.members.get(name);
 	}
 	
-	createMethod(name:string, retval:Type, modifiers:IrModifiers, body:Statements) {
-		let method = new IrMethod(name, retval, modifiers, this, body);
+	createMethod(name:string, retval:Type, modifiers:IrModifiers) {
+		let method = new IrMethod(name, retval, modifiers, this);
 		this.methods.push(method);
 		this.members.set(name, method);
 		return method;

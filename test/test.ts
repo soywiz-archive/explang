@@ -9,6 +9,7 @@ import ir = require('../ir_ast');
 import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
 import vfs = require('../vfs');
+import lang_desc = require('../lang_desc');
 
 var grammar = new _grammar.Grammar();
 
@@ -79,7 +80,8 @@ describe('test', () => {
 		var mod = new ir.IrModule();
 		var b = new ir.NodeBuilder(mod);
 		var TestClass = mod.createClass('Test');
-		var demoMethod = TestClass.createMethod('demo', ir.Types.Void, ir.IrModifiers.PUBLIC, b.stms([b.ret(b.int(10))]));
+		var demoMethod = TestClass.createMethod('demo', ir.Types.Void, ir.IrModifiers.PUBLIC);
+		demoMethod.body.add(b.ret(b.int(10)));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
@@ -89,7 +91,7 @@ describe('test', () => {
 	it('compile', () => {
 		testProgramJs(
 			'class Test123 { }',
-			"var Test123 = (function () { function Test123 () { } return Test123 ; })();"
+			"var Main = (function () { function Main() { } Main.main = function(argv) { }; return Main; })();var Test123 = (function () { function Test123 () { } return Test123 ; })();"
 		);
 	});
 	
@@ -149,5 +151,17 @@ describe('test', () => {
 
 	it('run-args', () => {
 		testProgramEvalJs('return argv[0];', 'a', ['a', 'b']);
+	});
+
+	/*
+	it('struct decl', () => {
+		testProgramEvalJs('struct Point(x:Float, y:Float) { }', 1, ['a', 'b']);
+	});
+	*/
+
+	it('lang desc', () => {
+		//new lang_desc.For(null, null, null, null);
+		//console.log('' + lang_desc.match(lang_desc.Demo2, '1+2').b.element.);
+		//console.log('' + lang_desc.match(lang_desc.Expr, '1+2'))
 	});
 });

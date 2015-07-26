@@ -141,6 +141,10 @@ export class ReaderContext {
             context.reader.matchEReg(/^\s+/);
         });
     }
+    createBasePsi(children:PsiElement[] = [], range?:TRange):PsiElement {
+        if (range == null) range = this.reader.createRange();
+        return new PsiElement(this.file, range, children);
+    }
     createEmptyPsi<T extends PsiElement>(clazz:Class<T>, range?:TRange):T {
         if (range == null) range = this.reader.createRange();
         return PsiElement.create(clazz, this.file, range, []);
@@ -203,17 +207,30 @@ export class PsiFile {
 }
 
 export class PsiNode {
+    public complete = true;
     constructor(public element:PsiElement) { }
 }
+
+export class Key<T> { constructor(public name:string) { } }
 
 export class PsiElement {
     public language:Language;
     public parent:PsiElement;
+    public node:PsiNode;
+    
+    toString() { return 'PsiElement(' + this.range + ' : ' + this.text + ' : ' +  this.children.length + ')'; }
 
     constructor(public file:PsiFile, public range:TRange, public children:PsiElement[] = []) {
         for (let child of children) {
             child.parent = this;
         }
+    }
+    
+    setUserData<T>(key:Key<T>, value:T) {
+    }
+
+    getUserData<T>(key:Key<T>):T {
+        return null;
     }
 
     get root():PsiElement {
@@ -518,8 +535,11 @@ export function tok(v: anytok, clazz?:Class<PsiElement>) {
 }
 export function _tok(v: anytok) { return tok(v); }
 
+//export function seq(...list:anytok[]):GSequence;
+export function sq(...list:anytok[]) { return new GSequence(list.map(_tok)); }
+export function sq2(clazz:Class<PsiElement>, ...list:anytok[]) { return new GSequence(list.map(_tok, clazz)); }
 export function seq(list:anytok[], clazz?:Class<PsiElement>) { return new GSequence(list.map(_tok), clazz); }
-export function _any(list:anytok[]) { return new GAny(list.map(_tok)); }
+export function _any(...list:anytok[]) { return new GAny(list.map(_tok)); }
 export function opt(v:anytok) { return new GOptional(tok(v)); }
 export function sure() { return new GSure(); }
 export function capture(name:string, v: GBase) { return new GCapture(v, name); }

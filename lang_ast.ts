@@ -67,9 +67,15 @@ export class ExpressionStm extends ListGrammarNode<PsiElement> {
 }
 
 export class Stms extends ListGrammarNode<PsiElement> {
-    stms:ListGrammarNode<PsiElement>;
-    get stms2():PsiElement[] {
-        return this.stms.elements;
+    get stms():PsiElement[] {
+        return this.elements;
+    }
+}
+
+export class StmsGroup extends ListGrammarNode<PsiElement> {
+    _stms:Stms;
+    get stms():PsiElement[] {
+        return this._stms.elements;
     }
 }
 
@@ -121,6 +127,11 @@ export class IdWithGenerics extends PsiElement {
 }
 
 export class Class extends PsiElement {
+    public idwg:IdWithGenerics;
+    public body:PsiElement;
+}
+
+export class Interface extends PsiElement {
     public idwg:IdWithGenerics;
 }
 

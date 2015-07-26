@@ -39,6 +39,9 @@ export function classNameOf(v:any):string {
 	if (res == 'object') {
 		res = (<any>v.constructor).name;
 	}
+	if (res == 'function') {
+		res = (<any>v).name;
+	}
 	return res;
 }
 

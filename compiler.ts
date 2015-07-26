@@ -35,7 +35,7 @@ class Compiler {
 		const b = this.b;
 		this.ensureClass();
 		if (this.method == null) {
-			this.method = this.clazz.createMethod('main', ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]));
+			this.method = this.clazz.createMethod('main', ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC);
 			this.method.addParam('argv', ir.Types.array(ir.Types.String));
 		}
 	}
@@ -117,11 +117,14 @@ class Compiler {
 			return b.exprstm(b.assign(b.local(local), initValue));
 		} else if (e instanceof lang.Stms) {
 			let scopeResolver = resolver.child();
-			return b.stms(e.stms2.map(c => this.stm(c, scopeResolver)));
+			return b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
+		} else if (e instanceof lang.StmsGroup) {
+			let scopeResolver = resolver.child();
+			return b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
 		} else if (e instanceof lang.Function) {
 			this.ensureClass();
 			let methodName = e.id_wg.text;
-			let method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC, b.stms([]))
+			let method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC)
 			method.bodyNode = e.body;
 			for (let arg of e.fargs) {
 				method.addParam(arg.name.text, ir.Types.Int);
@@ -130,6 +133,13 @@ class Compiler {
 			return b.stms([]);
 		} else if (e instanceof lang.FunctionExpBody) {
 			return b.ret(this.expr(e.expr, resolver));
+		} else if (e instanceof lang.Class) {
+			var name = e.idwg.text;
+			var oldClass = this.clazz;
+			this.clazz = this.mod.createClass(name);
+			var constructorCode = this.stm(e.body, new LocalResolver(null));
+			this.clazz = oldClass;
+			return;
 		}
 		
 		e.root.dump();
@@ -149,27 +159,9 @@ class Compiler {
 	}
 	
 	_compile(e:lang.PsiElement) {
-		let b = this.b;
-
-		if (e == null) return;
-		
-		if (e instanceof lang.Class) {
-			var name = e.idwg.text;
-			this.clazz = this.mod.createClass(name);
-			return;
-		}
-		
-		if (e instanceof lang.Stms) {
-			for (let c of e.elements) this._compile(c);
-			return;
-		}
-
-
-		//if (!this.clazz) this.error(e, `Expecting a class but found ${e.type}`);	
-		
 		this.ensureMethod();
-		if (!this.method.body) this.method.body = b.stms([]);
-		this.method.body.add(this.stm(e, this.method.resolver));
+		var s = this.stm(e, this.method.resolver);
+		this.method.body.add(s);
 	}
 	
 	compile(e:lang.PsiElement) {
