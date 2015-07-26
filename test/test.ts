@@ -151,6 +151,7 @@ describe('test', () => {
 
 	it('run-args', () => {
 		testProgramEvalJs('return argv[0];', 'a', ['a', 'b']);
+		testProgramEvalJs('return argv[2 ** 0];', 'b', ['a', 'b']);
 	});
 
 	/*
