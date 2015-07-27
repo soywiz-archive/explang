@@ -1,6 +1,6 @@
 /// <reference path="./defs.d.ts" />
 
-import { Map2, Map3 } from './utils';
+import { Map2, Map3, UserData } from './utils';
 
 export class IrModule {
 	public classes:IrClass[] = [];
@@ -59,8 +59,13 @@ export class IrMember {
 }
 
 export class IrLocal {
-	constructor(public name:string, public type:Type, public method:IrMethod) {
+	public allocName:string;
+	
+	constructor(public originalName:string, public type:Type, public method:IrMethod) {
+		this.allocName = originalName;
 	}
+	
+	get name() { return this.originalName; }
 }
 
 export class IrParameter implements ResolverItem {

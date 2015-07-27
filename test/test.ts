@@ -131,7 +131,7 @@ describe('test', () => {
 	});
 	
 	it('run-scope', () => {
-		//testProgramEvalJs('var a = 10; { var a = 7; } return a;', 10);
+		testProgramEvalJs('var a = 10; { var a = 7; } return a;', 10);
 	});
 	
 	it('run-range', () => {

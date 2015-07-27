@@ -192,3 +192,34 @@ export class Map3<K1, K2, K3, V> {
 		return m1.get(k2, k3);
 	}
 }
+
+export class Key<T> { constructor(public name:string) { } }
+
+export class UserData {
+	private data = new Map<any, any>();
+	set<T>(key:Key<T>, value:T):UserData {
+		this.data.set(key, value);
+		return this;
+	}
+	get<T>(key:Key<T>):T {
+		return <T>this.data.get(key);
+	}
+	has<T>(key:Key<T>):boolean {
+		return this.data.has(key); 
+	}
+}
+
+export class NameAlloc {
+	private names = new Set<string>();
+	
+	alloc(base:string):string {
+		while (true) {
+			if (!this.names.has(base)) {
+				this.names.add(base);
+				return base;
+			}
+			base = base + '1';
+		}
+		return null;
+	}
+}

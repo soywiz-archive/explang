@@ -3,7 +3,10 @@ interface NumberDictionary<T> { [key:number]:T; }
 interface StringDictionary<T> { [key:string]:T; }
 
 declare class Set<T> {
-	
+	size:number;
+	clear():void;
+	add(key:T):Set<T>;
+	has(key:T):boolean;
 }
 
 declare class Map<K, V> {

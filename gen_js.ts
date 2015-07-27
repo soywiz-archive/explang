@@ -1,7 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
 import ir = require('./ir');
-import { IndentWriter, IndentedString } from './utils';
+import { IndentWriter, IndentedString, NameAlloc } from './utils';
 
 class Generator {
 	private binopRaw(e:ir.BinOpNode) {
@@ -54,7 +54,7 @@ class Generator {
 		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
 		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
-		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.name}`);
+		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.allocName}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);
 		if (e instanceof ir.CallExpression) {
 			out = out.with(this.expr(e.left));
@@ -119,8 +119,10 @@ class Generator {
 		out = out.with(`) {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
+			let localNames = new NameAlloc();
 			for (let local of method.locals) {
-				out = out.with('var ' + local.name);
+				local.allocName = localNames.alloc(local.originalName);
+				out = out.with('var ' + local.allocName);
 				switch (local.type) {
 					case ir.Types.Int: out = out.with(' = 0'); break;
 					default: throw new Error("Unhandled type " + local.type);
