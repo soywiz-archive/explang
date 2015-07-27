@@ -135,7 +135,7 @@ describe('test', () => {
 	});
 	
 	it('run-range', () => {
-		//testProgramEvalJs('return 0 ... 100;', { min: 0, max: 100 });
+		testProgramEvalJs('var result = 0; for (a in 0 ... 100) result += a; return result;', 4950);
 	});
 
 	it('run-this-access', () => {

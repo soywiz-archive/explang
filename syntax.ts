@@ -36,7 +36,7 @@ export class Stm extends N { constructor(e:E, public it:any) { super(e); } }
 @Seq(Id, opt(TypeTag), opt(Init)) export class FuncArg extends N { constructor(e:E, public name:Id, public typetag?:TypeTag, public init?:Init) { super(e); } }
 @List(FuncArg, ',', 0) export class FuncArgs extends NodeList { constructor(e:E, public args:FuncArg[]) { super(e, args, null); } }
 
-@Seq('.', sure(), Id) export class AccessField extends N { constructor(e:E, public id:Id) { super(e); } }
+@Seq('.', Id) export class AccessField extends N { constructor(e:E, public id:Id) { super(e); } }
 @Seq('?.', sure(), Id) export class AccessFieldOpt extends N { constructor(e:E, public id:Id) { super(e); } }
 @Seq('[', sure(), Expr, ']') export class AccessArray extends N { constructor(e:E, public expr:Expr) { super(e); } }
 @Seq('(', sure(), list(Expr, ',', 0), ')') export class AccessCall extends N { constructor(e:E, public exprs:Expr[]) { super(e); } }
@@ -66,7 +66,7 @@ class _If extends N { constructor(e:E, public expr:Expr, public codeTrue:Stm, pu
 @Seq('static', 'if', sure(), '(', Expr, ')', Stm, opt(Else)) export class StaticIf extends _If { }
 @Seq('if', sure(), '(', Expr, ')', Stm, opt(Else)) export class If extends _If { }
 
-@Seq('for', sure(), '(', Id, 'in', Expr, ')', Stm) export class For extends N { constructor(e:E, public id:Id, public expr:Expr, public stm:Stm) { super(e); } } 
+@Seq('for', sure(), '(', Id, 'in', Expr, ')', Stm) export class For extends N { constructor(e:E, public id:Id, public expr:Expr, public body:Stm) { super(e); } } 
 @Seq('while', sure(), '(', Expr, ')', Stm) export class While extends N { constructor(e:E, public expr:Expr, public code:Stm) { super(e); } }
 @Seq('do', sure(), Stm, 'while', '(' , Expr, ')', ';') export class DoWhile extends N { constructor(e:E, public stm:Stm, public expr:Expr) { super(e); } }
 @Seq('return', sure(), opt(Expr), ';') export class Return extends N { constructor(e:E, public expr:Expr) { super(e); } }

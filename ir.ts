@@ -1,6 +1,6 @@
 /// <reference path="./defs.d.ts" />
 
-import { Map2, Map3, UserData } from './utils';
+import { Map2, Map3, UserData, NameAlloc } from './utils';
 
 export class IrModule {
 	public classes:IrClass[] = [];
@@ -11,7 +11,7 @@ export class IrModule {
 			'+=']) {
 			this.operators.addBinop(new IrOperator(this, op, Types.Int, Types.Int, Types.Int, null));
 		}
-			this.operators.addBinop(new IrOperator(this, '...', Types.Int, Types.Int, Types.Iterable, null));
+		this.operators.addBinop(new IrOperator(this, '...', Types.Int, Types.Int, Types.Iterable, null));
 	}
 
 	createClass(name:string) {
@@ -59,10 +59,7 @@ export class IrMember {
 }
 
 export class IrLocal {
-	public allocName:string;
-	
-	constructor(public originalName:string, public type:Type, public method:IrMethod) {
-		this.allocName = originalName;
+	constructor(public originalName:string, public allocName:string, public type:Type, public method:IrMethod) {
 	}
 	
 	get name() { return this.originalName; }
@@ -91,6 +88,7 @@ export class IrMethod extends IrMember {
 	bodyNode: any;
 	resolver: LocalResolver;
 	body:Statements = new Statements([]);
+	names = new NameAlloc();
 	
 	public constructor(public name:string, public retval:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
 		super(name, containingClass);
@@ -104,7 +102,7 @@ export class IrMethod extends IrMember {
 	}
 	
 	createLocal(name:string, type:Type) {
-		let local = new IrLocal(name, type, this);
+		let local = new IrLocal(name, this.names.alloc(name), type, this);
 		this.locals.push(local);
 		return local;
 	}
@@ -154,6 +152,7 @@ export class IrClass {
 
 export class Type {
 	toString() { return '$TYPE'; }
+	get arrayElement() { return Types.getElement(this); }
 }
 
 export class ClassType extends Type {
@@ -195,6 +194,8 @@ export class Types {
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
 	
 	static getElement(type:Type) {
+		// @TODO: HACK
+		if (type == Types.Iterable) return Types.Int;
 		if (type instanceof ArrayType) return type.element;
 		return Types.Unknown;
 	}
@@ -354,6 +355,7 @@ export class Statements extends Statement {
 
 export class ExpressionStm extends Statement { constructor(public expression:Expression) { super(); } }
 export class IfNode extends Statement { constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
+export class ForNode extends Statement { constructor(public local:IrLocal, public expr:Expression, public body:Statement) { super(); } }
 export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
 export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
 export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(local.type); } }
@@ -419,6 +421,7 @@ export class NodeBuilder {
 	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
 	arrayAccess(left:Expression, index:Expression) { return new ArrayAccess(left, index); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
+	_for(i:IrLocal, e:Expression, body:Statement) { return new ForNode(i, e, body); }
 	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
 	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }
 	binops(operators:string[], exprs:Expression[]) {

@@ -78,7 +78,6 @@ class Generator {
 			for (let c of s.nodes) out = out.with(this.stm(c));
 			return out;
 		}		
-
 		if (s instanceof ir.ReturnNode) {
 			return IndentedString.EMPTY.with('return ').with(this.expr(s.optValue)).with(';\n');
 		}
@@ -92,6 +91,19 @@ class Generator {
 			out = out.with('else {').with(this.stm(s.f)).with('}');
 			return out;
 		}
+		if (s instanceof ir.ForNode) {
+			let out = IndentedString.EMPTY;
+			let TEMPNAME = this.method.names.alloc('__temp');
+			out = out.with(`var ${TEMPNAME} = `).with(this.expr(s.expr)).with('.iterator();');
+			out = out.with(`while (${TEMPNAME}.hasMore()) {`);
+			out = out.with(s.local.allocName).with(' = ').with(`${TEMPNAME}.next();`);
+			out = out.with(this.stm(s.body));
+			out = out.with('}');
+			//out = out.with('if (').with(this.expr(s.e)).with(')');
+			//out = out.with('{').with(this.stm(s.t)).with('}');
+			//out = out.with('else {').with(this.stm(s.f)).with('}');
+			return out;
+		}
 		if (s instanceof ir.WhileNode) {
 			let out = IndentedString.EMPTY;
 			out = out.with('while (').with(this.expr(s.e)).with(')');
@@ -101,7 +113,9 @@ class Generator {
 		throw new Error(`Unhandled generate statement ${s}`);
 	}
 
+	private method:ir.IrMethod;
     protected generateMethod(method:ir.IrMethod):IndentedString {
+		this.method = method;
 		let name = method.name;
         let className = method.containingClass.name;
 		let out = IndentedString.EMPTY;
@@ -119,9 +133,7 @@ class Generator {
 		out = out.with(`) {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
-			let localNames = new NameAlloc();
 			for (let local of method.locals) {
-				local.allocName = localNames.alloc(local.originalName);
 				out = out.with('var ' + local.allocName);
 				switch (local.type) {
 					case ir.Types.Int: out = out.with(' = 0'); break;
@@ -170,7 +182,18 @@ export function generate(module:ir.IrModule):string {
 export function generateRuntime():string {
 	return `
 		$ExpLang = {};
-		$ExpLang.range = function(min, max) { return { min : min, max: max }; }
+		$ExpLang.RangeIterator = (function() {
+			function RangeIterator(min, max) { this.current = min; this.max = max; }
+			RangeIterator.prototype.hasMore = function() { return this.current < this.max; };
+			RangeIterator.prototype.next = function() { return this.current++; };
+			return RangeIterator;
+		})();
+		$ExpLang.Range = (function() {
+			function Range(min, max) { this.min = min; this.max = max; }
+			Range.prototype.iterator = function() { return new ($ExpLang.RangeIterator)(this.min, this.max); }
+			return Range;
+		})();
+		$ExpLang.range = function(min, max) { return new ($ExpLang.Range)(min, max); }
 		$ExpLang.icomp = function(a, b) { if (a < b) return -1; else if (a > b) return +1; else return 0; }
 	`;
 }

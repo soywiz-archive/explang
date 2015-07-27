@@ -1,5 +1,8 @@
 import { classNameOf } from './utils';
 
+const DEBUG = false;
+//const DEBUG = true;
+
 export class TRange {
     public constructor(public min:number, public max:number, public reader:Reader) { }
     static combine(a:TRange, b:TRange):TRange {
@@ -269,8 +272,6 @@ export class PsiElement {
 }
 
 export type E = PsiElement;
-
-const DEBUG = false;
 
 export function newVariadic(t:Class<any>, v:any[]) {
     switch (v.length) {

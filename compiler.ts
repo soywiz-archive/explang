@@ -89,7 +89,7 @@ class Compiler {
 					out = b.unopPost(out, '--');
 				} else {
 					e._element.root.dump();
-					throw `Unhandled expr-part ${part._nodeType} : '${part._text}'`;
+					throw new Error(`Unhandled expr-part ${part._nodeType} : '${part._text}'`);
 				}
 			}
 			return out;
@@ -102,7 +102,7 @@ class Compiler {
 		}
 		
 		e._element.root.dump();
-		throw `Unhandled expr ${e._nodeType} : '${e._text}'`;
+		throw new Error(`Unhandled expr ${e._nodeType} : '${e._text}'`);
 	}
 	
 	stm(e:N, resolver:LocalResolver):ir.Statement {
@@ -119,6 +119,7 @@ class Compiler {
 		if (e instanceof syntax.ExprStm) return b.exprstm(this.expr(e.expr, resolver));
 		if (e instanceof syntax.Vars) return this.stmVars(e, resolver);
 		if (e instanceof syntax.ClassType) return this.stmClass(e, resolver);
+		if (e instanceof syntax.For) return this.stmFor(e, resolver);
 		if (e instanceof syntax.VarDecl) {
 			let lazy = (e.init.initType._text == '=>');
 			let initExpr = e.init.expr;
@@ -147,7 +148,7 @@ class Compiler {
 		
 		//console.log(e);
 		if (e._element) e._element.root.dump();
-		throw `Unhandled stm ${e._nodeType} : '${e._text}'`;
+		throw new Error(`Unhandled stm ${e._nodeType} : '${e._text}'`);
 	}
 	
 	stmReturn(e:syntax.Return, resolver:LocalResolver) {
@@ -164,6 +165,16 @@ class Compiler {
 	
 	stmIf(e:syntax.If, resolver:LocalResolver) {
 		return this.b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e._else ? e._else.codeFalse : null, resolver));
+	}
+
+	stmFor(e:syntax.For, resolver:LocalResolver) {
+		let iterExpr = this.expr(e.expr, resolver);
+		let elementType = iterExpr.type.arrayElement;
+		let iterName = e.id.text;
+		let scopeResolver = resolver.child();
+		let iterVar = this.method.createLocal(iterName, elementType);
+		scopeResolver.add(iterVar);
+		return this.b._for(iterVar, iterExpr, this.stm(e.body, scopeResolver));
 	}
 
 	stmWhile(e:syntax.While, resolver:LocalResolver) {
