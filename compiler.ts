@@ -1,9 +1,11 @@
 /// <reference path="./defs.d.ts" />
 
-import ir = require('./ir_ast');
+import ir = require('./ir');
 import utils = require('./utils');
-import lang = require('./lang_ast');
-import { ResolverItem, Resolver, LocalResolver } from './ir_ast';
+import syntax = require('./syntax');
+import { E, N } from './grammar';
+import { classNameOf } from './utils';
+import { Resolver, LocalResolver } from './ir';
 
 class Compiler {
 	private mod = new ir.IrModule();
@@ -17,12 +19,12 @@ class Compiler {
 		this.b = new ir.NodeBuilder(this.mod);
 	}
 	
-	private error(e:lang.PsiElement, msg:string) {
-		this.result.errors.push(new Error(e, msg));
+	private error(e:E, msg:string) {
+		this.result.errors.push(new ErrorInfo(e, msg));
 	}
 
-	private warning(e:lang.PsiElement, msg:string) {
-		this.result.warnings.push(new Error(e, msg));
+	private warning(e:E, msg:string) {
+		this.result.warnings.push(new ErrorInfo(e, msg));
 	}
 	
 	private ensureClass() {
@@ -53,19 +55,27 @@ class Compiler {
 		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
-	expr(e:lang.PsiElement, resolver:LocalResolver):ir.Expression {
+	expr(e:N, resolver:LocalResolver):ir.Expression {
 		const b = this.b;
 		if (e == null) return null;
-		if (e.text == '') return null;
+		if (e instanceof Array) throw new Error('expr Trying to handle an array');
+		if (e._text == '') return null;
 		
-		if (e instanceof lang.BinaryOpList) {
-			return b.binops(e.operatorsRaw.map(e => e.text), e.expressions.map(child => this.expr(child, resolver)));
-		} else if (e instanceof lang.CallOrArrayAccess) {
+		if (e instanceof syntax.Expr) {
+			return this.expr(e.it, resolver);
+		} else if (e instanceof syntax.Expr1) {
+			return this.expr(e.it, resolver);
+		} else if (e instanceof syntax.BinaryOpList) {
+			let operators = e.operatorsRaw.map(e => e.op);
+			let expressions = e.expressionsRaw.map(child => this.expr(child, resolver));
+			return b.binops(operators, expressions);
+		} else if (e instanceof syntax.Expr2) {
 			var out = this.expr(e.left, resolver);
-			for (let part of e.parts) {
-				if (part instanceof lang.AccessCall) {
-					out = b.call(out, part.args.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
-				} else if (part instanceof lang.AccessField) {
+			for (let _part of e.parts) {
+				let part = _part.item;
+				if (part instanceof syntax.AccessCall) {
+					out = b.call(out, part.exprs.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
+				} else if (part instanceof syntax.AccessField) {
 					let member = ir.Types.access(out.type, part.id.text);
 					if (member == null) {
 						console.warn(`Can't find member ${part.id.text}`);
@@ -73,77 +83,108 @@ class Compiler {
 					} else {
 						out = b.access(out, member);
 					}
-				} else if (part instanceof lang.AccessArray) {
+				} else if (part instanceof syntax.AccessArray) {
 					out = b.arrayAccess(out, this.expr(part.expr, resolver));
-				} else if (part.text == '--') {
+				} else if (part._text == '--') {
 					out = b.unopPost(out, '--');
 				} else {
-					e.root.dump();
-					throw `Unhandled expr-part ${part.type} : '${part.text}'`;
+					e._element.root.dump();
+					throw `Unhandled expr-part ${part._nodeType} : '${part._text}'`;
 				}
 			}
 			return out;
-		} else if (e instanceof lang.Id) {
+		} else if (e instanceof syntax.Id) {
 			return this.resolve(e.text, resolver);
-		} else if (e instanceof lang.Int) {
-			return b.int(parseInt(e.text));
+		} else if (e instanceof syntax.Int) {
+			return b.int(e.value);
+		} else if (e instanceof syntax.Literal) {
+			return this.expr(e.item, resolver);
 		}
 		
-		e.root.dump();
-		throw `Unhandled expr ${e.type} : '${e.text}'`;
+		e._element.root.dump();
+		throw `Unhandled expr ${e._nodeType} : '${e._text}'`;
 	}
 	
-	stm(e:lang.PsiElement, resolver:LocalResolver):ir.Statement {
+	stm(e:N, resolver:LocalResolver):ir.Statement {
 		let b = this.b;
 
 		if (e == null) return null;
-		if (e.text == '') return null;
+		if (e instanceof Array) throw new Error('stm Trying to handle an array');
+		if (e._text == '') return null;
 		
-		if (e instanceof lang.If) {
-			return b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e.codeFalse, resolver));
-		} else if (e instanceof lang.While) {
-			return b._while(this.expr(e.expr, resolver), this.stm(e.code, resolver));
-		} else if (e instanceof lang.Return) {
-			return b.ret(this.expr(e.expr, resolver));
-		} else if (e instanceof lang.ExpressionStm) {
-			return b.exprstm(this.expr(e.expression, resolver));
-		} else if (e instanceof lang.VarDecls) {
-			return b.stms(e.vars.map(v => this.stm(v, resolver)));
-		} else if (e instanceof lang.VarDecl) {
-			let initExpr = e.initExpr;
+		if (e instanceof syntax.Stm) return this.stmStm(e, resolver);
+		if (e instanceof syntax.If) return this.stmIf(e, resolver);
+		if (e instanceof syntax.While) return this.stmWhile(e, resolver);
+		if (e instanceof syntax.Return) return this.stmReturn(e, resolver);
+		if (e instanceof syntax.ExprStm) return b.exprstm(this.expr(e.expr, resolver));
+		if (e instanceof syntax.Vars) return this.stmVars(e, resolver);
+		if (e instanceof syntax.ClassType) return this.stmClass(e, resolver);
+		if (e instanceof syntax.VarDecl) {
+			let lazy = (e.init.initType._text == '=>');
+			let initExpr = e.init.expr;
 			let initValue = this.expr(initExpr, resolver);
 			let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
 			resolver.add(local);
 			return b.exprstm(b.assign(b.local(local), initValue));
-		} else if (e instanceof lang.Stms) {
+		} else if (e instanceof syntax.Stms) {
 			let scopeResolver = resolver.child();
 			return b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
-		} else if (e instanceof lang.StmsGroup) {
-			let scopeResolver = resolver.child();
-			return b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
-		} else if (e instanceof lang.Function) {
+		} else if (e instanceof syntax.StmsBlock) {
+			return this.stmBlock(e, resolver);
+		} else if (e instanceof syntax.Function) {
 			this.ensureClass();
-			let methodName = e.id_wg.text;
+			let methodName = e.name._text;
 			let method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC)
 			method.bodyNode = e.body;
-			for (let arg of e.fargs) {
+			for (let arg of e.args.args) {
 				method.addParam(arg.name.text, ir.Types.Int);
 			}
 			this.completeMethods.push(method);
 			return b.stms([]);
-		} else if (e instanceof lang.FunctionExpBody) {
+		} else if (e instanceof syntax.FunctionBody1) {
 			return b.ret(this.expr(e.expr, resolver));
-		} else if (e instanceof lang.Class) {
-			var name = e.idwg.text;
-			var oldClass = this.clazz;
-			this.clazz = this.mod.createClass(name);
-			var constructorCode = this.stm(e.body, new LocalResolver(null));
-			this.clazz = oldClass;
-			return;
 		}
 		
-		e.root.dump();
-		throw `Unhandled stm ${e.type} : '${e.text}'`;
+		//console.log(e);
+		if (e._element) e._element.root.dump();
+		throw `Unhandled stm ${e._nodeType} : '${e._text}'`;
+	}
+	
+	stmReturn(e:syntax.Return, resolver:LocalResolver) {
+		return this.b.ret(this.expr(e.expr, resolver));
+	}
+	
+	stmVars(e:syntax.Vars, resolver:LocalResolver) {
+		return this.b.stms(e.vars.map(v => this.stm(v, resolver)));
+	}
+	
+	stmStm(e:syntax.Stm, resolver:LocalResolver) {
+		return this.stm(e.it, resolver);
+	}
+	
+	stmIf(e:syntax.If, resolver:LocalResolver) {
+		return this.b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e._else ? e._else.codeFalse : null, resolver));
+	}
+
+	stmWhile(e:syntax.While, resolver:LocalResolver) {
+		return this.b._while(this.expr(e.expr, resolver), this.stm(e.code, resolver));
+	}
+	
+	stmBlock(e:syntax.StmsBlock, resolver:LocalResolver) {
+		//let scopeResolver = resolver.child();
+		//return this.b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
+
+		let scopeResolver = resolver.child();
+		return this.stm(e.stms, scopeResolver);
+	}
+	
+	stmClass(e:syntax.ClassType, resolver:LocalResolver):any {
+		var name = e.name.id._text;
+		var oldClass = this.clazz;
+		this.clazz = this.mod.createClass(name);
+		var constructorCode = this.stm(e.body, new LocalResolver(null));
+		this.clazz = oldClass;
+		return null;
 	}
 	
 	private completeMethods:ir.IrMethod[] = [];
@@ -158,32 +199,31 @@ class Compiler {
 		this.method = oldMethod;
 	}
 	
-	_compile(e:lang.PsiElement) {
+	_compile(node:N) {
 		this.ensureMethod();
-		var s = this.stm(e, this.method.resolver);
+		var s = this.stm(node, this.method.resolver);
 		this.method.body.add(s);
 	}
 	
-	compile(e:lang.PsiElement) {
-		this._compile(e);
+	compile(node:N) {
+		this._compile(node);
 		this.doCompleteMethods();
 	}
 }
 
-export class Error {
-	constructor(public e:lang.PsiElement, public msg:string) { }
-	
+export class ErrorInfo {
+	constructor(public e:E, public msg:string) { }
 	toString() { return `ERROR:${this.e.range}:${this.msg}`; }
 }
 
 export class CompileResult {
-	public errors:Error[] = [];
-	public warnings:Error[] = [];
+	public errors:ErrorInfo[] = [];
+	public warnings:ErrorInfo[] = [];
 	public module:ir.IrModule;
 }
 
-export function compile(e:lang.PsiElement):CompileResult {
+export function compile(node:N):CompileResult {
 	let compiler = new Compiler();
-	compiler.compile(e);
+	compiler.compile(node);
 	return compiler.result;
 }

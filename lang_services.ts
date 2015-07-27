@@ -1,17 +1,16 @@
 import vfs = require('./vfs');
 import gen_js = require('./gen_js');
 import compiler = require('./compiler');
-import lang_grammar = require('./lang_grammar');
-import _grammar = require('./grammar');
-var grammar = new _grammar.Grammar();
+import syntax = require('./syntax');
+import grammar = require('./grammar');
 
 export function compile(file:vfs.VfsFile):string {
-	var grammarResult = grammar.match(file.readString(), lang_grammar._stms);
+	var grammarResult = grammar.match(syntax.Stms, file.readString());
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
 	}
-	if (grammarResult.endOfFile) {
-		throw new Error(`End of file ${grammarResult}`);
+	if (!grammarResult.eof) {
+		throw new Error(`Not end of file ${grammarResult}`);
 	}
 	var compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {

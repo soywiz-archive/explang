@@ -1,26 +1,22 @@
 ///<reference path="mocha.d.ts" />
 ///<reference path="../defs.d.ts" />
 
-import _grammar = require('../grammar');
-import lang_grammar = require('../lang_grammar');
+import grammar = require('../grammar');
 import gen_js = require('../gen_js');
 import gen_jvm = require('../gen_jvm');
-import ir = require('../ir_ast');
+import ir = require('../ir');
 import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
 import vfs = require('../vfs');
 import syntax = require('../syntax');
-import grammar2 = require('../grammar2');
-
-var grammar = new _grammar.Grammar();
 
 function testProgramJs(src:string, expectedJs:string) {
-	var grammarResult = grammar.match(src, lang_grammar._stms);
+	var grammarResult = grammar.match(syntax.Stms, src);
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
 	}
-	if (grammarResult.endOfFile) {
-		throw new Error(`End of file ${grammarResult}`);
+	if (!grammarResult.eof) {
+		throw new Error(`Not end of file ${grammarResult}`);
 	}
 	var compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
@@ -33,12 +29,12 @@ function testProgramJs(src:string, expectedJs:string) {
 }
 
 function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {
-	let grammarResult = grammar.match(src, lang_grammar._stms);
+	let grammarResult = grammar.match(syntax.Stms, src);
 	if (!grammarResult.matched) {
 		throw new Error(`Not matched ${grammarResult}`);
 	}
-	if (grammarResult.endOfFile) {
-		throw new Error(`End of file ${grammarResult}`);
+	if (!grammarResult.eof) {
+		throw new Error(`Not end of file ${grammarResult}`);
 	}
 	let compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
@@ -64,13 +60,13 @@ vfs.cwd().access('Example.class').write(gen_jvm.generateExample());
 
 describe('test', () => {
 	it('simple match', () => {
-		assert.equal('true;', grammar.match('true;', lang_grammar._stms).text);
-		assert.equal('if (1) ;', grammar.match('if (1) ;', lang_grammar._stms).text);
-		assert.equal('while (true) { }', grammar.match('while (true) { }', lang_grammar._stms).text);
-		assert.equal('var a = 1;', grammar.match('var a = 1;', lang_grammar._stms).text);
-		assert.equal('var a => 1;', grammar.match('var a => 1;', lang_grammar._stms).text);
-		assert.equal('if (true) 1; else 2;', grammar.match('if (true) 1; else 2;', lang_grammar._stms).text);
-		assert.equal('var a = 3; var b = 4;', grammar.match('var a = 3; var b = 4;', lang_grammar._stms).text);
+		assert.equal('true;', grammar.match(syntax.Stms, 'true;').text);
+		assert.equal('if (1) ;', grammar.match(syntax.Stms, 'if (1) ;').text);
+		assert.equal('while (true) { }', grammar.match(syntax.Stms, 'while (true) { }').text);
+		assert.equal('var a = 1;', grammar.match(syntax.Stms, 'var a = 1;').text);
+		assert.equal('var a => 1;', grammar.match(syntax.Stms, 'var a => 1;').text);
+		assert.equal('if (true) 1; else 2;', grammar.match(syntax.Stms, 'if (true) 1; else 2;').text);
+		assert.equal('var a = 3; var b = 4;', grammar.match(syntax.Stms, 'var a = 3; var b = 4;').text);
 		
 		//var node = grammar.match('if (1 + 1) { }', lang_grammar._stms).node;
 		//var node = grammar.match('var a = 100; return a + 2;', lang_grammar._stms).node;
@@ -92,7 +88,7 @@ describe('test', () => {
 	it('compile', () => {
 		testProgramJs(
 			'class Test123 { }',
-			"var Main = (function () { function Main() { } Main.main = function(argv) { }; return Main; })();var Test123 = (function () { function Test123 () { } return Test123 ; })();"
+			"var Main = (function () { function Main() { } Main.main = function(argv) { }; return Main; })();var Test123 = (function () { function Test123() { } return Test123; })();"
 		);
 	});
 	
@@ -164,12 +160,14 @@ describe('test', () => {
 	it('syntax v2', () => {
 		//new lang_desc.For(null, null, null, null);
 		//console.log('' + lang_desc.match(lang_desc.Demo2, '1+2').b.element.);
-		let res = grammar2.match(syntax.Expr, '1+2');
-		assert.equal('1+2', res.element.text);
-		assert.equal('Expr', res.nodeType);
 		{
-			let res = grammar2.match(syntax.Stm, 'if (1) 1;');
-			assert.equal('if (1) 1;', res.element.text);
+			let res = grammar.match(syntax.Expr, '1+2');
+			assert.equal('1+2', res.text);
+			assert.equal('Expr', res.nodeType);
+		}
+		{
+			let res = grammar.match(syntax.Stm, 'if (1) 1;');
+			assert.equal('if (1) 1;', res.text);
 			assert.equal('Stm', res.nodeType);
 		}
 	});

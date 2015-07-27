@@ -1,6 +1,6 @@
 /// <reference path="./defs.d.ts" />
 
-import ir = require('./ir_ast');
+import ir = require('./ir');
 import { Writer, Utf8Encoder } from './utils';
 
 enum Constant {

@@ -1,29 +1,28 @@
-import lang_desc = require('./syntax');
-import d = require('./grammar2');
-import { N } from './grammar2';
+import syntax = require('./syntax');
+import vfs = require('./vfs');
+import { N, match } from './grammar';
 import { classNameOf } from './utils';
+import { compile } from './lang_services';
 
-//@d.Seq('1') class TEST extends d.N { }
-@d.EReg(/^\d[\d_]*/) export class Int extends N {
-	get value():number { return lang_desc.parseInt2(this.element.text); }
-}
+let file = vfs.memoryFile(`
+	class Test { }
+`);
 
-//console.log(d.match2(d.list(TEST, null, 1), '1111') + '');
-//console.log(d.match2(d.list(TEST, ',', 1), '1,1,1,1') + '');
-//console.log(d.match(lang_desc.Int, '999') + '');
-//console.log(Int);
-//console.log('' + d.match(lang_desc.Expr, '1 + 1[2]').it);
+//console.log('content:', '"', file.readString(), '"');
+console.log(compile(file));
 
+/*
 function handle(n:N):any {
-	if (n instanceof lang_desc.Expr) {
+	if (n instanceof syntax.Expr) {
 		return handle(n.it);
 	}
-	if (n instanceof lang_desc.BinaryOpList) {
-		console.log(classNameOf(n.exprs));
-		console.log(classNameOf(n.ops));
+	if (n instanceof syntax.BinaryOpList) {
+		console.log(classNameOf(n.expressionsRaw));
+		console.log(classNameOf(n.operatorsRaw));
 		return;
 	}
-	console.log(`Unhandled ${n.nodeType}`);
+	console.log(`Unhandled ${n._nodeType}`);
 }
 
-handle(d.match(lang_desc.Expr, '1 + 1[2]'));
+handle(match(syntax.Expr, '1 + 1[2]').node);
+*/

@@ -1,4 +1,4 @@
-/// <reference path="./defs.d.ts" />
+import { classNameOf } from './utils';
 
 export class TRange {
     public constructor(public min:number, public max:number, public reader:Reader) { }
@@ -201,54 +201,23 @@ export class ReaderContext {
     }
 }
 
-/*
-export class NodeInfo {
-    public tokens:TRange[];
-    public range:TRange;
-    
-    public constructor(tokens:TRange[]) {
-        this.tokens = tokens;
-        this.range = TRange.combineList(tokens);
-    }
-
-    addInfo(info: NodeInfo) {
-        this.addTokens(info.tokens);
-    }
-    
-    addTokens(add:TRange[]) {
-        this.tokens = this.tokens.concat(add);
-        this.range = TRange.combineList(this.tokens);
-    }
-    
-    get text() {
-        if (this.range == null) return '';
-        return this.range.text;
-    }
-}
-*/
-
 export class Language {
     public constructor(public name:string) {
     }
+    static EXP = new Language('exp');
 }
 
 export class PsiFile {
     constructor(public reader:Reader) {
-        
     }    
-}
-
-export class PsiNode {
-    public complete = true;
-    constructor(public element:PsiElement) { }
 }
 
 export class Key<T> { constructor(public name:string) { } }
 
 export class PsiElement {
-    public language:Language;
+    public language:Language = Language.EXP;
     public parent:PsiElement;
-    public node:PsiNode;
+    public node:N;
     
     toString() { return 'PsiElement(' + this.range + ' : ' + this.text + ' : ' +  this.children.length + ')'; }
 
@@ -299,16 +268,58 @@ export class PsiElement {
     }
 }
 
-export class ListGrammarNode<T extends PsiElement> extends PsiElement {
-    public elements:T[];
-    public separators:PsiElement[];
+export type E = PsiElement;
+
+const DEBUG = false;
+
+export function newVariadic(t:Class<any>, v:any[]) {
+    switch (v.length) {
+        case 0: return new t();
+        case 1: return new t(v[0]);
+        case 2: return new t(v[0], v[1]);
+        case 3: return new t(v[0], v[1], v[2]);
+        case 4: return new t(v[0], v[1], v[2], v[3]);
+        case 5: return new t(v[0], v[1], v[2], v[3], v[4]);
+        case 6: return new t(v[0], v[1], v[2], v[3], v[4], v[5]);
+        case 7: return new t(v[0], v[1], v[2], v[3], v[4], v[5], v[6]);
+        case 8: return new t(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+        case 9: return new t(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8]);
+        default: throw new Error("Can't create an object with that many arguments");
+    }
 }
 
-export class SequenceGrammarNode extends PsiElement {
+export class N {
+    public _complete:boolean = false;
+    constructor(public _element:PsiElement) { }
+    get _text() { return this._element.text; }
+    get _nodeType() { return (<any>this.constructor).name; }
+    static build(t:Class<N>, args:any[], complete:boolean) {
+        if (t == null) t = UnmatchedNode;
+        if (DEBUG) console.info('N.build', classNameOf(t), args.length);
+        let node:N = newVariadic(t, args);
+        node._complete = complete;
+        return node;
+    }
+    toString() {
+        let out = (<any>this.constructor).name + '["' + this._element.text + '"]';
+        for (let i in this) {
+            let v = (<any>this)[i];
+            if ((v instanceof N) || (v instanceof Array)) {
+                out += '(' + i + '=' + v + ')';
+            }
+        }
+        return out;
+    }
 }
 
-export class UnmatchGrammarNode extends PsiElement {
+export class NodeList extends N {
+    constructor(e:E, public elements:N[], public separators:N[]) { super(e); }
 }
+
+export class UnmatchedNode extends N { }
+
+class AnonymousList extends NodeList { }
+class AnonymousAny extends N { constructor(e:E, public it:N) { super(e); } }
 
 export class GrammarResult {
     public name:string = null;
@@ -323,271 +334,356 @@ export class GrammarResult {
         return this.text;
     }
     static matched(reason:string, node:PsiElement) {
-        //console.log('matched', reason);
+        if (DEBUG) console.log('matched', reason);
         return new GrammarResult(true, node);
     }
     
     private static _unmatched:GrammarResult = new GrammarResult(false, null); 
     static unmatched(reason:string) {
-        //console.log('unmatched:', reason);
+        if (DEBUG) console.log('unmatched:', reason);
         return this._unmatched;
     }
 }
 
 export class GBase {
-    /*
-    constructor(build: () => string) {
-    }
-    */
+    public constructor(public clazz:Class<N>) { }
     
-	match(readerContext:ReaderContext):GrammarResult {
+    protected build(context:ReaderContext, result:TRange, children:PsiElement[], nodes:any[], complete:boolean):N {
+        if (result == null) return null;
+        const element = context.createBasePsi(children, result);
+        var args:any[] = [];
+        args.push(element);
+        for (let node of nodes) args.push(node);
+        return N.build(this.clazz, args, complete);
+    }
+
+	match(readerContext:ReaderContext):N {
         throw "Must override match";
     }
-}
-
-export class GSure extends GBase {
-	match(context:ReaderContext):GrammarResult {
-        context.skip();
-        return GrammarResult.matched('sure', context.createEmptyPsi(UnmatchGrammarNode));
-    }
-}
-
-export class GLiteral extends GBase {
-	public constructor(public value:string, public clazz:Class<PsiElement> = UnmatchGrammarNode) {
-		super();
-	}
-
-	match(context:ReaderContext):GrammarResult {
-        context.skip();
-        var result = context.reader.matchLitRange(this.value);
-        var clazz = this.clazz;
-        var reason = `literal("${this.value}")`;
-        return (result == null)
-            ? GrammarResult.unmatched(reason)
-            : GrammarResult.matched(reason, context.createEmptyPsi(clazz, result))
-        ; 
-    }
+    
+    toString() { return classNameOf(this); }
 }
 
 export class GRegExp extends GBase {
-	public constructor(public value:RegExp, public clazz:Class<PsiElement> = UnmatchGrammarNode) {
-		super();
-	}
+	public constructor(public reg:RegExp, clazz:Class<N> = null) { super(clazz); }
 
-	match(context:ReaderContext):GrammarResult {
+	match(context:ReaderContext):N {
         context.skip();
-        var result = context.reader.matchERegRange(this.value);
-        var clazz = this.clazz;
-        var reason = `regexp(${this.value})`;
-        return (result == null)
-            ? GrammarResult.unmatched(reason)
-            : GrammarResult.matched(reason, context.createEmptyPsi(clazz, result))
-        ; 
+        let result = context.reader.matchERegRange(this.reg);
+        if (DEBUG) console.log(`GRegExp.match: ${this.reg} :: ${result}`);
+        return result ? this.build(context, result, [], [], true) : null;
+    }
+    
+    toString() { return `${this.reg}`; }
+}
+
+export class GLiteral extends GBase {
+	public constructor(public lit:string) { super(null); }
+
+	match(context:ReaderContext):N {
+        context.skip();
+        let result = context.reader.matchLitRange(this.lit);
+        if (DEBUG) console.log('GLiteral.match', this.lit, result);
+        return result ? this.build(context, result, [], [], true) : null;
+    }
+    
+    toString() { return `${this.lit}`; }
+}
+
+export class GLiteralList extends GBase {
+    private litsOpt:Literals;
+	public constructor(clazz:Class<N>, public lits:string[]) {
+        super(clazz);
+        this.litsOpt = Literals.fromList(lits);
+    }
+
+	match(context:ReaderContext):N {
+        context.skip();
+        if (DEBUG) console.log('pos', context.reader.pos);
+        let result = context.reader.matchLitListRange(this.litsOpt);
+        if (DEBUG) console.log('GLiteralList.match', `${this.litsOpt}`, `${result}`);
+        return this.build(context, result, [], [], true);
+    }
+    
+    toString() { return `${this.litsOpt}`; }
+}
+
+export class GBaseInfo {
+    constructor(public m:GBase, public store:boolean) { }
+    toString() { return `${this.m}`; }
+    static fromARG(item:ARG):GBaseInfo {
+        if (item === null) return null;
+        //if (!(item instanceof GBaseInfo)) throw new Error('Not a GBaseInfo');
+        if (item instanceof GBaseInfo) return <GBaseInfo>item;
+        if (item instanceof GBase) return new GBaseInfo(item, true);
+        if (typeof item == 'string') return new GBaseInfo(new GLiteral(<string>item), false);
+        if (item instanceof RegExp) return new GBaseInfo(new GRegExp(item), false);
+        //console.log(typeof item);
+        let matcher = (<any>item).matcher;
+        if (!matcher) throw new Error("Not matcher found in " + item);
+        return new GBaseInfo(matcher, true);
     }
 }
 
-export class GAny extends GBase {
-	public constructor(public items:GBase[]) {
-		super();
-	}
-    
-   	match(readerContext:ReaderContext):GrammarResult {
-        var reader = readerContext.reader;
-        readerContext.skip();
-        var start = readerContext.reader.pos;
-        for (var i of this.items) {
-            var result = i.match(readerContext);
-            if (result.matched) {
-                return result;
-            }
-            reader.pos = start;
+export class GSeqAny extends GBase {
+    protected items:GBaseInfo[] = null;
+    protected paramcount = 0;
+
+	public constructor(clazz:Class<N>, public rawItems:any[]) { super(clazz); }
+
+    protected prepareOnce() {
+        if (this.items != null) return;
+        var out:GBaseInfo[] = [];
+        this.paramcount = 0;
+        for (let item of this.rawItems) {
+            let i = GBaseInfo.fromARG(item);
+            out.push(i);
+            if (i.store) this.paramcount++;
         }
-        return GrammarResult.unmatched('any');
+        this.items = out;
     }
 }
+
+export class GAny extends GSeqAny {
+	match(context:ReaderContext):N {
+        const reader = context.reader; 
+        this.prepareOnce();
+        context.skip();
+        const start = reader.pos;
+        let result:N = null;
+        let complete = false;
+        
+        if (DEBUG) console.log('' + this);
+        
+        for (const item of this.items) {
+            reader.pos = start;
+            const node = item.m.match(context);
+            if (DEBUG) console.log(`any -> ${node}`);
+            if (node != null) {
+                if (result == null || node._complete) {
+                    result = node;
+                    if (node._complete) {
+                        complete = true;
+                        break;
+                    }
+                }
+            }
+        }
+        const end = reader.pos;
+        
+        if (result != null) {        
+            return this.build(context, reader.createRange(start, end), [result._element], [result], complete);
+        } else {
+            return null;
+        }
+    }
+    
+    toString() { this.prepareOnce(); return '[' + this.items.join('|') + ']'; }
+}
+
+export class GSure extends GBase { }
 
 export class GOptional extends GBase {
-	public constructor(public value:GBase) {
-		super();
-	}
+    private elementInfo:GBaseInfo = null;
     
-   	match(context:ReaderContext):GrammarResult {
-        var reader = context.reader;
-        context.skip();
-        var start = context.reader.pos;
-        var v = this.value.match(context);
-        if (v.matched) return v;
-        reader.pos = start;
-        return GrammarResult.matched('opt', context.createEmptyPsi(PsiElement));
+    constructor(public element:ARG) {
+        super(null);
     }
-}
-
-export class GCapture extends GBase {
-	public constructor(public value:GBase, public name:string) {
-		super();
-	}
     
-   	match(readerContext:ReaderContext):GrammarResult {
-        var result = this.value.match(readerContext);
-        result.name = this.name;
+    match(context:ReaderContext):N {
+        if (!this.elementInfo) this.elementInfo = GBaseInfo.fromARG(this.element);
+        let reader = context.reader;
+        let result = this.elementInfo.m.match(context);
+        let clazz = this.elementInfo.m.clazz;
+        this.clazz = clazz;
+        if (result == null) {
+            result = this.build(context, reader.readRange(0), [], [], true); 
+        }
         return result;
-    }
-}
-
-export class GRef extends GBase {
-    value:GBase;
-    
-	public constructor() {
-		super();
-	}
-    
-    set(value:GBase) {
-        this.value = value;
-        return this;
-    }
-    
-   	match(readerContext:ReaderContext):GrammarResult {
-        return this.value.match(readerContext);
-    } 
-}
-
-export class GSkipper extends GBase {
-	public constructor(public value:GBase, public skipper: Skipper) {
-		super();
-	}
-    
-   	match(readerContext:ReaderContext):GrammarResult {
-        readerContext.pushSkipper(this.skipper);
-        try {
-            var result = this.value.match(readerContext);
-            return result;
-        } finally {
-            readerContext.popSkipper();
-        }
-    }
-}
-
-export class GSequence extends GBase {
-	public constructor(public items:GBase[], public clazz?:Class<PsiElement>) {
-		super();
-	}
-    
-    match(context:ReaderContext):GrammarResult {
-        context.skip();
-        var startPos = context.reader.pos;
-        var nodes:PsiElement[] = [];
-        var results:GrammarResult[] = [];
-        var sure = false;
-        for (var i of this.items) {
-            if (i instanceof GSure) {
-                sure = true;
-                continue;
-            }
-            var r = i.match(context);
-            if (!r.matched) {
-                context.reader.pos = startPos;
-                return GrammarResult.unmatched('seq');
-            }
-            nodes.push(r.node);
-            results.push(r);
-        }
-        var clazz = this.clazz;
-        if (clazz == null) clazz = SequenceGrammarNode;
-        var element = context.createPsi(clazz, nodes);
-        for (let r of results) {
-            if (r.name != null) {
-                (<any>element)[r.name] = r.node;
-            }
-        }
-        return GrammarResult.matched('seq', element);
     }
 }
 
 export class GList extends GBase {
-	public constructor(public element:GBase, public separator:GBase, public min:number, public clazz?:Class<ListGrammarNode<PsiElement>>) {
-		super();
-	}
+    private prepared:boolean = false;
+    public elementInfo:GBaseInfo;
+    public separatorInfo:GBaseInfo;
     
-    match(context:ReaderContext):GrammarResult {
-        context.skip();
-        var r2 = GrammarResult.matched('list:0', context.createEmptyPsi(PsiElement));
-        var all:PsiElement[] = [];
-        var elements:PsiElement[] = [];
-        var separators:PsiElement[] = [];
-        var count = 0;
-        while (!context.reader.eof) {
-            var r = this.element.match(context);
-            if (!r.matched && r2.matched && this.separator != null) return GrammarResult.unmatched('list:1');
-            if (!r.matched) {
+    constructor(clazz:Class<N>, public element:Class<N>, public separator:ARG, public min:number, public tailsep:boolean = false) {
+        super(clazz);
+    }
+    
+    private prepareOnce() {
+        if (this.prepared) return;
+        this.prepared = true;
+        this.elementInfo = GBaseInfo.fromARG(this.element);
+        this.separatorInfo = this.separator ? GBaseInfo.fromARG(this.separator) : null;
+    }
+    
+    match(context:ReaderContext):NodeList {
+        let reader = context.reader;
+        let items:N[] = [];
+        let separators:N[] = [];
+        let children:E[] = [];
+        
+        this.prepareOnce();
+        
+        let start = reader.pos;
+        let complete = true;
+        while (true) {
+            let it = this.elementInfo.m.match(context);
+            if (DEBUG) console.log('result:' + it);
+            
+            if (it == null) {
+                if (DEBUG) console.log('it break');
                 break;
+            } else {
+                if (it != null) children.push(it._element);
+                items.push(it);
             }
-            count++;
-            all.push(r.node);
 
-            elements.push(r.node);
-            if (this.separator != null) {
-                r2 = this.separator.match(context);
-                if (r2.node) {
-                    all.push(r2.node);
-                    separators.push(r2.node);
+            let sep:N = null;
+            if (this.separatorInfo != null) {
+                sep = this.separatorInfo.m.match(context);
+                if (sep == null) {
+                    if (DEBUG) console.log('sep break');
+                    break;
+                } else {
+                    separators.push(sep);
                 }
             }
         }
-        if (count < this.min) return GrammarResult.unmatched('list:2');
-        var clazz = this.clazz;
-        if (clazz == null) clazz = ListGrammarNode;
-        var i2:ListGrammarNode<PsiElement> = <ListGrammarNode<PsiElement>>context.createPsi(clazz, all);
-        i2.separators = separators;
-        i2.elements = elements;
-        return GrammarResult.matched('list:3', i2);
+        let end = reader.pos;
+        if (DEBUG) console.log('items:', items.length, items);
+        if (DEBUG) console.log('separators:', separators.length, separators);
+        
+        if (items.length < this.min) return null;
+        
+        return <NodeList>this.build(context, reader.createRange(start, end), children, [items, separators], true);
     }
 }
 
-export class Grammar {
-	match(str:string, root:GBase):GrammarResult {
-        let rc = new ReaderContext(new Reader(str));
-        let result = root.match(rc);
-        if (!rc.reader.eof) {
-            result.endOfFile = true;
-        }
-        return result;
-    }
-}
-
-type anytok = string | RegExp | GBase;
-
-export function tok(v: anytok, clazz?:Class<PsiElement>) {
-    if (v == null) return null;
-    if (v instanceof GBase) {
-        return v;
-    } else if (v instanceof RegExp) { 
-        return new GRegExp(v, clazz);
-    } else {
-        return new GLiteral(<string>v, clazz);
-    }
-}
-export function _tok(v: anytok) { return tok(v); }
-
-//export function seq(...list:anytok[]):GSequence;
-export function sq(...list:anytok[]) { return new GSequence(list.map(_tok)); }
-export function sq2(clazz:Class<PsiElement>, ...list:anytok[]) { return new GSequence(list.map(_tok, clazz)); }
-export function seq(list:anytok[], clazz?:Class<PsiElement>) { return new GSequence(list.map(_tok), clazz); }
-export function _any(...list:anytok[]) { return new GAny(list.map(_tok)); }
-export function opt(v:anytok) { return new GOptional(tok(v)); }
-export function sure() { return new GSure(); }
-export function capture(name:string, v: GBase) { return new GCapture(v, name); }
-export function ref() { return new GRef(); }
-export function list(element:anytok, separator?:anytok, min:number = 1, clazz?:Class<ListGrammarNode<PsiElement>>) {
-    return new GList(tok(element), tok(separator), min, clazz);
-}
-
-//console.log(_if.match(new ReaderContext(new Reader('if ((1)) 1; else 1;'))));
-//console.log(_stms.match(new ReaderContext(new Reader('var a; var b; function test() {}'))));
-//console.log(_stms.match(new ReaderContext(new Reader('var a:int = 1, b = 3;'))));
-//console.log(_stms.match(new ReaderContext(new Reader('class Test { lazy var a = 10; }'))));
-//console.log(_stms.match(new ReaderContext(new Reader('var a = ((c, d) => 10);'))));
-//console.log(_lit.match(new ReaderContext(new Reader('777.3'))));
-
-export function test() {
+export class GSeq extends GSeqAny {
+    toString() { this.prepareOnce(); return '(' + this.items.join(',') + ')'; }
     
+	match(context:ReaderContext):N {
+        const reader = context.reader; 
+        this.prepareOnce();
+        context.skip();
+        const all:N[] = [];
+        const elements:PsiElement[] = [];
+        const out:any[] = [];
+        let complete = true;
+        const start = reader.pos;
+        let sure = false;
+        for (let item of this.items) {
+            let m = item.m;
+            if (m instanceof GSure) {
+                sure = true;
+                continue;
+            }
+            let node = item.m.match(context);
+            all.push(node);
+            if (node != null) {
+                elements.push(node._element);
+                if (node instanceof AnonymousAny) {
+                    node = (<AnonymousAny>node).it;
+                }
+            }
+            if (item.store) {
+                if (node instanceof AnonymousList) {
+                    if (m instanceof GList) {
+                        //console.log('aaaaaaaaaaaaaaa', classNameOf(node.elements), classNameOf(node.separators));
+                        out.push(node.elements);
+                        if (m.separator != null) {
+                            out.push(node.separators);
+                        }
+                    } else {
+                        throw 'NodeList but no GList';
+                    }
+                } else {
+                    out.push(node);
+                }
+            }
+            if (node == null) {
+                complete = false;
+                break;
+            }
+        }
+        //console.log(classNameOf(this.clazz), out.map(classNameOf));
+        const end = reader.pos;
+        
+        if (!complete && !sure) {
+            reader.pos = start;
+            return null;
+        } else {
+            const result = this.build(context, reader.createRange(start, end), elements, out, complete);
+            //if (classNameOf(this.clazz) == 'CallOrArrayAccess') console.log(result.nodeType, result);
+            for (const item of all) if (item && item._element && item._element.node == null) item._element.node = result; 
+            result._complete = complete;
+            return result;
+        }
+    }
+}
+
+export type ARG = string|RegExp|Class<N>|GBase;
+
+export function Seq(...args:ARG[]) {
+	return function (target: Class<N>) {
+		(<any>target).matcher = new GSeq(target, args);
+	}
+}
+
+export function SetAny(target: Class<N>, ...args:ARG[]) {
+    let allStrings = (args.filter(args => typeof args != 'string').length == 0);
+	(<any>target).matcher = allStrings ? new GLiteralList(target, <string[]>args) : new GAny(target, args);
+}
+
+export function Any(...args:ARG[]) {
+	return function (target: Class<N>) {
+        SetAny(target, ...args);
+	}
+}
+
+export function EReg(reg:RegExp) {
+	return function (target: Class<N>) {
+        (<any>target).matcher = new GRegExp(reg, target);
+        //SetAny(target, reg);
+	}
+}
+
+export function List(element:Class<N>, separator:ARG, min:number) {
+	return function (target: Class<NodeList>) {
+        (<any>target).matcher = new GList(target, element, separator, min);
+	}
+}
+
+export function sure() { return new GSure(null); }
+
+export function list(element:Class<N>, separator:ARG, min:number):GList {
+    return new GList(AnonymousList, element, separator, min);
+}
+
+export function opt(arg:ARG):GOptional {
+    return new GOptional(arg);
+}
+
+export function _any(...args:ARG[]):GAny {
+    return new GAny(AnonymousAny, args);
+}
+
+export class MatchResult<T extends N> {
+    constructor(public node:T, public context:ReaderContext) {
+    }
+    get matched() { return this.node._complete; }
+    get eof() { return this.context.reader.eof; }
+    get text() { return this.node ? this.node._element.text : '<unmatched>'; }
+    get nodeType() { return this.node ? this.node._nodeType : null; }
+}
+
+export function match2<T extends N>(e:GBase, str:string, file?:string, pos?:number):MatchResult<T> {
+    let context = new ReaderContext(new Reader(str, file, pos));
+    return new MatchResult(<T>e.match(context), context);
+}
+export function match<T extends N>(e:Class<T>, str:string, file?:string, pos?:number):MatchResult<T> {
+    return match2<T>(<GBase>(<any>e).matcher, str, file, pos);
 }
