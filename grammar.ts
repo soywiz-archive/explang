@@ -274,6 +274,7 @@ export class PsiElement {
     }
 
     get type() {
+        if (this.node != null) return '' + (<any>this.node.constructor).name;
         return '' + (<any>this.constructor).name;
     }
     

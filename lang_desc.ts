@@ -1,6 +1,6 @@
 ///<reference path="./defs.d.ts" />
 
-import { N, E, EReg, List, Any, Seq, SetAny, GBase, list, sure } from './lang_desc2';
+import { N, NodeList, E, EReg, List, Any, Seq, SetAny, GBase, list, sure } from './lang_desc2';
 
 export function parseInt2(str:string):number {
    return parseInt(str.replace(/_/g, '')); 
@@ -24,7 +24,7 @@ export function parseInt2(str:string):number {
 export class Expr extends N { constructor(e:E, public it:FuncLit1|FuncLit2|AwaitExpr|YieldExpr|BinaryOpList) { super(e); } }
 
 @Seq(Id) export class FuncArg extends N { constructor(e:E, public id:Id) { super(e); } }
-@Any(list(FuncArg, ',', 0)) export class FuncArgs extends N { }
+@List(FuncArg, ',', 0) export class FuncArgs extends NodeList { }
 
 @Seq('.', sure(), Id) export class AccessField extends N { constructor(e:E, public id:Id) { super(e); } }
 @Seq('?.', sure(), Id) export class AccessFieldOpt extends N { constructor(e:E, public id:Id) { super(e); } }
@@ -35,9 +35,9 @@ export class Expr extends N { constructor(e:E, public it:FuncLit1|FuncLit2|Await
 @Seq('(', Expr, ')') export class ParenExpr extends N { constructor(e:E, public expr:Expr) { super(e); } }
 @Seq('(', list(Expr, ',', 0), ')') export class ArrayExpr extends N { constructor(e:E, public items:Expr[]) { super(e); } }
 @Any(Literal, UnopExpr, ParenExpr, ArrayExpr) export class Expr1 extends N { constructor(e:E, public it:Literal|UnopExpr|ParenExpr|ArrayExpr) { super(e); } }
-@Seq(Expr1, list(Access, null, 0)) export class CallOrArrayAccess extends N { constructor(e:E, expr:Expr1, parts:Access[]) { super(e); } }
+@Seq(Expr1, list(Access, null, 0)) export class CallOrArrayAccess extends N { constructor(e:E, public expr:Expr1, public parts:Access[]) { super(e); } }
 @Any(CallOrArrayAccess) export class Expr2 extends N { constructor(e:E, public it:CallOrArrayAccess) { super(e); }  }
-@Any(list(Expr2, Binop, 1)) export class BinaryOpList extends N { constructor(e:E, public exprs:Expr2[], public ops:string[]) { super(e); }  }
+@List(Expr2, Binop, 1) export class BinaryOpList extends N { constructor(e:E, public exprs:Expr2[], public ops:string[]) { super(e); }  }
 @Seq('yield', sure(), Expr) export class YieldExpr extends N { constructor(e:E, public expr:Expr) { super(e); }  }
 @Seq('await', sure(), Expr) export class AwaitExpr extends N { constructor(e:E, public expr:Expr) { super(e); }  }
 @Seq(Id, '=>', sure(), Expr) export class FuncLit1 extends N { constructor(e:E, public id:Id, public expr:Expr) { super(e); }  }

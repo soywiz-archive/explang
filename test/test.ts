@@ -164,6 +164,8 @@ describe('test', () => {
 	it('lang desc', () => {
 		//new lang_desc.For(null, null, null, null);
 		//console.log('' + lang_desc.match(lang_desc.Demo2, '1+2').b.element.);
-		console.log(lang_desc2.match(lang_desc.Expr, '1+2'));
+		let res = lang_desc2.match(lang_desc.Expr, '1+2');
+		assert.equal('1+2', res.element.text);
+		assert.equal('Expr', res.nodeType);
 	});
 });
