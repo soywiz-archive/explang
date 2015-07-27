@@ -5,11 +5,11 @@
 	"configurations": [
 		{
 			// Name of configuration; appears in the launch configuration drop down menu.
-			"name": "Launch app.js",
+			"name": "Launch app.ts",
 			// Type of configuration. Possible values: "node", "mono".
 			"type": "node",
 			// Workspace relative or absolute path to the program.
-			"program": "app.js",
+			"program": "app.ts",
 			// Automatically stop program after launch.
 			"stopOnEntry": false,
 			// Command line arguments passed to the program.
@@ -23,10 +23,20 @@
 			// Environment variables passed to the program.
 			"env": { },
 			// Use JavaScript source maps (if they exist).
-			"sourceMaps": false,
+			"sourceMaps": true,
 			// If JavaScript source maps are enabled, the generated code is expected in this directory.
 			"outDir": null
 		}, 
+		{
+            "name": "Run mocha",
+            "type": "node",
+            "program": "c:/Users/soywi/AppData/Roaming/npm/mocha2",
+            "stopOnEntry": false,
+            "args": ["test/test.js"],
+            "cwd": ".",
+            "runtimeExecutable": null,
+            "env": { "NODE_ENV": "production"}
+        },
 		{
 			"name": "Attach",
 			"type": "node",
@@ -34,7 +44,7 @@
 			"address": "localhost",
 			// Port to attach to.
 			"port": 5858,
-			"sourceMaps": false
+			"sourceMaps": true
 		}
 	]
 }

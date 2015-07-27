@@ -38,6 +38,30 @@ export class TRange {
     }
 }
 
+function arrayUnique<T>(a:T[]) {
+    return a.reduce(function(p, c) {
+        if (p.indexOf(c) < 0) p.push(c);
+        return p;
+    }, []);
+};
+
+export class Literals {
+    constructor(private lits:string[], private map:StringDictionary<boolean>, public lengths:number[]) { }
+    
+    contains(lit:string) { 
+        return typeof this.map[lit] !== "undefined";
+    }
+    
+    static fromList(lits:string[]):Literals {
+        var lengths = arrayUnique(lits.map(v => v.length)).sort().reverse();
+        let map:StringDictionary<boolean> = {};
+        for (let lit of lits) map[lit] = true;
+        return new Literals(lits, map, lengths);
+    }
+    
+    toString() { return `Literals(${this.lits.join(' ')})`; }
+}
+
 export class Reader {
     public constructor(public str:string, public file:string = 'file', public pos = 0) {
     }
@@ -100,8 +124,16 @@ export class Reader {
     }
 
     public matchLitRange(lit:string):TRange {
-        if (this.str.substr(this.pos, lit.length) != lit) return null;
-        return this.readRange(lit.length);
+        return (this.str.substr(this.pos, lit.length) == lit) ? this.readRange(lit.length) : null;
+    }
+
+    public matchLitListRange(lits:Literals):TRange {
+        for (let len of lits.lengths) {
+            if (lits.contains(this.str.substr(this.pos, len))) {
+                return this.readRange(len);
+            }
+        }
+        return null;
     }
 
     public matchEReg(v:RegExp) {

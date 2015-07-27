@@ -5,11 +5,13 @@
         "noImplicitAny": true,
         "removeComments": true,
         "experimentalDecorators": true,
+        "sourceMap": true,
         "outDir": "."
     },
  
     "files": [
         "cmd.ts",
+        "app.ts",
         "compiler.ts",
         "grammar.ts",
         "test/test.ts"
