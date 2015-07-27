@@ -9,8 +9,8 @@ import ir = require('../ir_ast');
 import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
 import vfs = require('../vfs');
-import lang_desc = require('../lang_desc');
-import lang_desc2 = require('../lang_desc2');
+import syntax = require('../syntax');
+import grammar2 = require('../grammar2');
 
 var grammar = new _grammar.Grammar();
 
@@ -164,7 +164,7 @@ describe('test', () => {
 	it('lang desc', () => {
 		//new lang_desc.For(null, null, null, null);
 		//console.log('' + lang_desc.match(lang_desc.Demo2, '1+2').b.element.);
-		let res = lang_desc2.match(lang_desc.Expr, '1+2');
+		let res = grammar2.match(syntax.Expr, '1+2');
 		assert.equal('1+2', res.element.text);
 		assert.equal('Expr', res.nodeType);
 	});

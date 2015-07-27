@@ -1,6 +1,6 @@
 ///<reference path="./defs.d.ts" />
 
-import { N, NodeList, E, EReg, List, Any, Seq, SetAny, GBase, list, sure } from './lang_desc2';
+import { N, NodeList, E, EReg, List, Any, Seq, SetAny, GBase, list, sure } from './grammar2';
 
 export function parseInt2(str:string):number {
    return parseInt(str.replace(/_/g, '')); 

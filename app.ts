@@ -1,6 +1,6 @@
-import lang_desc = require('./lang_desc');
-import d = require('./lang_desc2');
-import { N } from './lang_desc2';
+import lang_desc = require('./syntax');
+import d = require('./grammar2');
+import { N } from './grammar2';
 import { classNameOf } from './utils';
 
 //@d.Seq('1') class TEST extends d.N { }
