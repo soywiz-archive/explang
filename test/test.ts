@@ -161,11 +161,16 @@ describe('test', () => {
 	});
 	*/
 
-	it('lang desc', () => {
+	it('syntax v2', () => {
 		//new lang_desc.For(null, null, null, null);
 		//console.log('' + lang_desc.match(lang_desc.Demo2, '1+2').b.element.);
 		let res = grammar2.match(syntax.Expr, '1+2');
 		assert.equal('1+2', res.element.text);
 		assert.equal('Expr', res.nodeType);
+		{
+			let res = grammar2.match(syntax.Stm, 'if (1) 1;');
+			assert.equal('if (1) 1;', res.element.text);
+			assert.equal('Stm', res.nodeType);
+		}
 	});
 });

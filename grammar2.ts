@@ -1,8 +1,279 @@
-import grammar = require('./grammar');
-import { PsiElement, PsiNode, ReaderContext } from './grammar';
 import { classNameOf } from './utils';
 
-export type E = grammar.PsiElement;
+export class TRange {
+    public constructor(public min:number, public max:number, public reader:Reader) { }
+    static combine(a:TRange, b:TRange):TRange {
+        return new TRange(Math.min(a.min, b.min), Math.max(a.max, b.max), a.reader);
+    }
+    static combineList(list:TRange[]):TRange {
+        if (!list || list.length == 0) return null;
+        var first = list[0];
+        var min = first.min;
+        var max = first.max;
+        for (var i of list) {
+            min = Math.min(min, i.min);
+            max = Math.max(max, i.max);
+        }
+        return new TRange(min, max, first.reader);
+    }
+    public contains(index:number) { return index >= this.min && index <= this.max; }
+    public toString() { return `${this.min}:${this.max}`; }
+    public get file():string { return this.reader.file; }
+    public get text():string { return this.reader.slice(this.min, this.max); }
+    
+    public startEmptyRange():TRange {
+        return new TRange(this.min, this.min, this.reader);
+    }
+
+    public endEmptyRange():TRange {
+        return new TRange(this.max, this.max, this.reader);
+    }
+
+    public displace(offset:number):TRange {
+        return new TRange(this.min + offset, this.max + offset, this.reader);
+    }
+
+    static createDummy() {
+        return new TRange(0, 0, new Reader(''));
+    }
+}
+
+function arrayUnique<T>(a:T[]) {
+    return a.reduce(function(p, c) {
+        if (p.indexOf(c) < 0) p.push(c);
+        return p;
+    }, []);
+};
+
+export class Literals {
+    constructor(private lits:string[], private map:StringDictionary<boolean>, public lengths:number[]) { }
+    
+    contains(lit:string) { 
+        return typeof this.map[lit] !== "undefined";
+    }
+    
+    static fromList(lits:string[]):Literals {
+        var lengths = arrayUnique(lits.map(v => v.length)).sort().reverse();
+        let map:StringDictionary<boolean> = {};
+        for (let lit of lits) map[lit] = true;
+        return new Literals(lits, map, lengths);
+    }
+    
+    toString() { return `Literals(${this.lits.join(' ')})`; }
+}
+
+export class Reader {
+    public constructor(public str:string, public file:string = 'file', public pos = 0) {
+    }
+    
+    public reset() {
+        this.pos = 0;
+    }
+    
+    public get eof() {
+        return this.pos >= this.str.length;
+    }
+
+    public createRange(start:number = -1, end:number = -1):TRange {
+        if (start == -1) start = this.pos;
+        if (end == -1) end = this.pos;
+        return new TRange(start, end, this);
+    }
+
+    public readRange(length:number):TRange {
+        var range = new TRange(this.pos, this.pos + length, this);
+        this.pos += length;
+        return range;
+    }
+    
+    public slice(start:number, end:number):string {
+        return this.str.substr(start, end - start);
+    }
+
+    public peek(count:number):string {
+        return this.str.substr(this.pos, count);
+    }
+
+    public peekChar():number {
+        return this.str.charCodeAt(this.pos);
+    }
+
+    public read(count:number):string {
+        var out = this.peek(count);
+        this.skip(count);
+        return out;
+    }
+
+    public unread(count:number):void {
+        this.pos -= count;
+    }
+    public readChar():number {
+        var out = this.peekChar();
+        this.skip(1);
+        return out;
+    }
+
+    public skip(count:number):void {
+        this.pos += count;
+    }
+
+    public matchLit(lit:string) {
+        if (this.str.substr(this.pos, lit.length) != lit) return null;
+        this.pos += lit.length;
+        return lit;
+    }
+
+    public matchLitRange(lit:string):TRange {
+        return (this.str.substr(this.pos, lit.length) == lit) ? this.readRange(lit.length) : null;
+    }
+
+    public matchLitListRange(lits:Literals):TRange {
+        for (let len of lits.lengths) {
+            if (lits.contains(this.str.substr(this.pos, len))) {
+                return this.readRange(len);
+            }
+        }
+        return null;
+    }
+
+    public matchEReg(v:RegExp) {
+		var result = this.str.substr(this.pos).match(v);
+        if (!result) return null;
+        var m = result[0];
+        this.pos += m.length;
+        return m;
+    }
+
+    public matchERegRange(v:RegExp):TRange {
+		var result = this.str.substr(this.pos).match(v);
+        if (!result) return null;
+        return this.readRange(result[0].length);
+    }
+
+    public matchStartEnd(start:string, end:string):string {
+        if (this.str.substr(this.pos, start.length) != start) return null;
+        var startIndex = this.pos;
+        var index = this.str.indexOf(end, this.pos);
+        if (index < 0) return null;
+        //trace(index);
+        this.pos = index + end.length;
+        return this.slice(startIndex, this.pos);
+    }
+}
+
+type Skipper = (readerContext:ReaderContext) => void;
+
+export class ReaderContext {
+    skipperStack:Skipper[] = [];
+    skipper:Skipper;
+    public file:PsiFile;
+    public constructor(public reader:Reader) {
+        this.file = new PsiFile(reader);
+        this.pushSkipper(context => {
+            context.reader.matchEReg(/^\s+/);
+        });
+    }
+    createBasePsi(children:PsiElement[] = [], range?:TRange):PsiElement {
+        if (range == null) range = this.reader.createRange();
+        return new PsiElement(this.file, range, children);
+    }
+    createEmptyPsi<T extends PsiElement>(clazz:Class<T>, range?:TRange):T {
+        if (range == null) range = this.reader.createRange();
+        return PsiElement.create(clazz, this.file, range, []);
+    }
+    createPsi<T extends PsiElement>(clazz:Class<T>, elements:T[]):T {
+        var range:TRange;
+        if (elements.length > 0) {
+            range = TRange.combineList(elements.map(e => e.range));
+        } else {
+            range = this.reader.createRange();
+        }
+        return PsiElement.create(clazz, this.file, range, elements);
+    }
+    skip() {
+        this.skipper(this);
+    }
+    pushSkipper(skipper: Skipper) {
+        this.skipperStack.push(this.skipper = skipper);
+    }
+    popSkipper() {
+        this.skipper = this.skipperStack.pop();
+    }
+}
+
+export class Language {
+    public constructor(public name:string) {
+    }
+    static EXP = new Language('exp');
+}
+
+export class PsiFile {
+    constructor(public reader:Reader) {
+    }    
+}
+
+export class PsiNode {
+    public complete = true;
+    constructor(public element:PsiElement) { }
+}
+
+export class Key<T> { constructor(public name:string) { } }
+
+export class PsiElement {
+    public language:Language = Language.EXP;
+    public parent:PsiElement;
+    public node:PsiNode;
+    
+    toString() { return 'PsiElement(' + this.range + ' : ' + this.text + ' : ' +  this.children.length + ')'; }
+
+    constructor(public file:PsiFile, public range:TRange, public children:PsiElement[] = []) {
+        for (let child of children) {
+            child.parent = this;
+        }
+    }
+    
+    setUserData<T>(key:Key<T>, value:T) {
+    }
+
+    getUserData<T>(key:Key<T>):T {
+        return null;
+    }
+
+    get root():PsiElement {
+        return this.parent ? this.parent.root : this;
+    }
+    
+    static create<T extends PsiElement>(clazz:Class<T>, file:PsiFile, range:TRange, children:PsiElement[] = []):T {
+        return new clazz(file, range, children);
+    }
+
+    get type() {
+        if (this.node != null) return '' + (<any>this.node.constructor).name;
+        return '' + (<any>this.constructor).name;
+    }
+    
+    get text() { return this.range.text; }
+    
+    getChildrenOfType<T>(clazz:Class<T>):T[] {
+        return <T[]><any[]>this.children.filter(c => c instanceof clazz);
+    }
+    
+    get first() { return this.children.length ? this.children[0] : null; }
+    get last() { return this.children.length ? this.children[this.children.length - 1] : null; }
+ 
+    as<T extends PsiElement>(clazz:Class<T>) {
+        return <T>this;
+    }
+    
+    dump(pad:string = '') {
+        console.log(pad + this.type + ': ' + this.text);
+        for (let child of this.children) {
+            child.dump(pad + '  ');
+        }
+    }
+}
+
+export type E = PsiElement;
 
 const DEBUG = false;
 
@@ -50,6 +321,7 @@ export class NodeList extends N {
 }
 
 export class UnmatchedNode extends N { }
+export class AnonymousAny extends N { constructor(e:E, public it:N) { super(e); } }
 
 export class GrammarResult {
     public name:string = null;
@@ -78,7 +350,7 @@ export class GrammarResult {
 export class GBase {
     public constructor(public clazz:Class<N>) { }
     
-    protected build(context:ReaderContext, result:grammar.TRange, children:PsiElement[], nodes:any[], complete:boolean):N {
+    protected build(context:ReaderContext, result:TRange, children:PsiElement[], nodes:any[], complete:boolean):N {
         if (result == null) return null;
         const element = context.createBasePsi(children, result);
         var args:any[] = [];
@@ -121,10 +393,10 @@ export class GLiteral extends GBase {
 }
 
 export class GLiteralList extends GBase {
-    private litsOpt:grammar.Literals;
+    private litsOpt:Literals;
 	public constructor(clazz:Class<N>, public lits:string[]) {
         super(clazz);
-        this.litsOpt = grammar.Literals.fromList(lits);
+        this.litsOpt = Literals.fromList(lits);
     }
 
 	match(context:ReaderContext):N {
@@ -142,6 +414,7 @@ export class GBaseInfo {
     constructor(public m:GBase, public store:boolean) { }
     toString() { return `${this.m}`; }
     static fromARG(item:ARG):GBaseInfo {
+        if (item === null) return null;
         //if (!(item instanceof GBaseInfo)) throw new Error('Not a GBaseInfo');
         if (item instanceof GBaseInfo) return <GBaseInfo>item;
         if (item instanceof GBase) return new GBaseInfo(item, true);
@@ -211,6 +484,26 @@ export class GAny extends GSeqAny {
 }
 
 export class GSure extends GBase { }
+
+export class GOptional extends GBase {
+    private elementInfo:GBaseInfo = null;
+    
+    constructor(public element:ARG) {
+        super(null);
+    }
+    
+    match(context:ReaderContext):N {
+        if (!this.elementInfo) this.elementInfo = GBaseInfo.fromARG(this.element);
+        let reader = context.reader;
+        let result = this.elementInfo.m.match(context);
+        let clazz = this.elementInfo.m.clazz;
+        this.clazz = clazz;
+        if (result == null) {
+            result = this.build(context, reader.readRange(0), [], [], true); 
+        }
+        return result;
+    }
+}
 
 export class GList extends GBase {
     private prepared:boolean = false;
@@ -292,7 +585,12 @@ export class GSeq extends GSeqAny {
             }
             let node = item.m.match(context);
             all.push(node);
-            if (node != null) elements.push(node.element);
+            if (node != null) {
+                elements.push(node.element);
+                if (node instanceof AnonymousAny) {
+                    node = (<AnonymousAny>node).it;
+                }
+            }
             if (item.store) {
                 if (node instanceof NodeList) {
                     if (m instanceof GList) {
@@ -367,8 +665,16 @@ export function list(element:Class<N>, separator:ARG, min:number):GList {
     return new GList(NodeList, element, separator, min);
 }
 
+export function opt(arg:ARG):GOptional {
+    return new GOptional(arg);
+}
+
+export function _any(...args:ARG[]):GAny {
+    return new GAny(AnonymousAny, args);
+}
+
 export function match2<T extends N>(e:GBase, str:string, file?:string, pos?:number):T {
-    return <T>e.match(new ReaderContext(new grammar.Reader(str, file, pos)));
+    return <T>e.match(new ReaderContext(new Reader(str, file, pos)));
 }
 export function match<T extends N>(e:Class<T>, str:string, file?:string, pos?:number):T {
     return match2<T>(<GBase>(<any>e).matcher, str, file, pos);
