@@ -138,6 +138,8 @@ describe('test', () => {
 	
 	it('run-range', () => {
 		testProgramEvalJs('var result = 0; for (a in 0 ... 100) result += a; return result;', 4950);
+		testProgramEvalJs('var result = 0; for (a in 0 ... 100 * 2) result += a; return result;', 19900);
+		testProgramEvalJs('var result = 0; var it = 0 ... 100 * 2; for (a in it) result += a; return result;', 19900);
 	});
 
 	it('run-this-access', () => {

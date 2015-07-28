@@ -91,34 +91,38 @@ class Generator {
 			out = out.with('else {').with(this.stm(s.f)).with('}');
 			return out;
 		}
+		if (s instanceof ir.FastForNode) {
+			let localName = s.local.allocName;
+			return IndentedString.EMPTY
+				.with(`for (${localName} = ${s.min}; ${localName} < ${s.max}; ${localName}++) {`)
+				.with(this.stm(s.body))
+				.with('}')
+			;
+		}
+		if (s instanceof ir.Fast2ForNode) {
+			let localName = s.local.allocName;
+			let l = s.min, r = s.max;
+			let MIN = this.method.names.alloc('__min');
+			let MAX = this.method.names.alloc('__max');
+			let out = IndentedString.EMPTY;
+			out = out.with(`var ${MIN} = `).with(this.expr(l)).with(';');
+			out = out.with(`var ${MAX} = `).with(this.expr(r)).with(';');
+			out = out.with(`for (${localName} = ${MIN}; ${localName} < ${MAX}; ${localName}++) {`);
+			out = out.with(this.stm(s.body));
+			out = out.with('}');
+			return out;
+		}
 		if (s instanceof ir.ForNode) {
 			let out = IndentedString.EMPTY;
 			let expr = s.expr;
 			let localName = s.local.allocName;
-			if (expr instanceof ir.BinOpNode && expr.op == '...') {
-				let l = expr.l, r = expr.r;
-				if (l instanceof ir.Immediate && r instanceof ir.Immediate && l.type == ir.Types.Int && r.type == ir.Types.Int) {
-					out = out.with(`for (${localName} = ${l.value}; ${localName} < ${r.value}; ${localName}++) {`);
-					out = out.with(this.stm(s.body));
-					out = out.with('}');
-				} else {
-					let MIN = this.method.names.alloc('__min');
-					let MAX = this.method.names.alloc('__max');
-					out = out.with(`var ${MIN} = `).with(this.expr(l)).with(';');
-					out = out.with(`var ${MAX} = `).with(this.expr(r)).with(';');
-					out = out.with(`for (${localName} = ${MIN}; ${localName} < ${MAX}; ${localName}++) {`);
-					out = out.with(this.stm(s.body));
-					out = out.with('}');
-				}
-			} else {
-				//console.info(classNameOf(s.expr));
-				let TEMPNAME = this.method.names.alloc('__temp');
-				out = out.with(`var ${TEMPNAME} = `).with(this.expr(s.expr)).with('.iterator();');
-				out = out.with(`while (${TEMPNAME}.hasMore()) {`);
-				out = out.with(localName).with(' = ').with(`${TEMPNAME}.next();`);
-				out = out.with(this.stm(s.body));
-				out = out.with('}');
-			}
+			//console.info(classNameOf(s.expr));
+			let TEMPNAME = this.method.names.alloc('__temp');
+			out = out.with(`var ${TEMPNAME} = `).with(this.expr(s.expr)).with('.iterator();');
+			out = out.with(`while (${TEMPNAME}.hasMore()) {`);
+			out = out.with(localName).with(' = ').with(`${TEMPNAME}.next();`);
+			out = out.with(this.stm(s.body));
+			out = out.with('}');
 			return out;
 		}
 		if (s instanceof ir.WhileNode) {
@@ -154,7 +158,9 @@ class Generator {
 				out = out.with('var ' + local.allocName);
 				switch (local.type) {
 					case ir.Types.Int: out = out.with(' = 0'); break;
-					default: throw new Error("Unhandled type " + local.type);
+					// @TODO: HACK!
+					case ir.Types.Iterable: out = out.with(' = null'); break;
+					default: throw new Error(`Unhandled type ${local.type} generating variables`);
 				}
 				out = out.with(';\n');
 			}

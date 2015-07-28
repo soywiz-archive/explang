@@ -356,6 +356,8 @@ export class Statements extends Statement {
 export class ExpressionStm extends Statement { constructor(public expression:Expression) { super(); } }
 export class IfNode extends Statement { constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
 export class ForNode extends Statement { constructor(public local:IrLocal, public expr:Expression, public body:Statement) { super(); } }
+export class FastForNode extends Statement { constructor(public local:IrLocal, public min:number, public max:number, public body:Statement) { super(); } }
+export class Fast2ForNode extends Statement { constructor(public local:IrLocal, public min:Expression, public max:Expression, public body:Statement) { super(); } }
 export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
 export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
 export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(local.type); } }
@@ -421,7 +423,18 @@ export class NodeBuilder {
 	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
 	arrayAccess(left:Expression, index:Expression) { return new ArrayAccess(left, index); }
 	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
-	_for(i:IrLocal, e:Expression, body:Statement) { return new ForNode(i, e, body); }
+	_for(local:IrLocal, e:Expression, body:Statement):Statement {
+		if (e instanceof BinOpNode) {
+			if (e.op == '...') {
+				let l = e.l, r = e.r;
+				if (l instanceof Immediate && r instanceof Immediate && l.type == Types.Int && r.type == Types.Int) {
+					return new FastForNode(local, l.value, r.value, body);
+				}
+				return new Fast2ForNode(local, l, r, body);
+			}
+		}
+		return new ForNode(local, e, body);
+	}
 	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
 	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }
 	binops(operators:string[], exprs:Expression[]) {
