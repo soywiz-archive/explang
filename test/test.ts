@@ -22,10 +22,8 @@ function testProgramJs(src:string, expectedJs:string) {
 	if (compilerResult.errors.length > 0) {
 		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
 	}
-	assert.equal(
-		expectedJs,
-		gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim()
-	);
+	let generated = gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim();
+	assert.equal(expectedJs, generated);
 }
 
 function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {
@@ -46,8 +44,12 @@ function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {
 	try {
 		result = eval(code);
 	} catch (e) {
-		console.log(code);
+		console.info(code);
 		console.error(e);
+	}
+	
+	if (expectedResult != result) {
+		console.info(code);
 	}
 	
 	assert.equal(

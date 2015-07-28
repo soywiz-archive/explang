@@ -1,7 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
 import ir = require('./ir');
-import { IndentWriter, IndentedString, NameAlloc } from './utils';
+import { IndentWriter, IndentedString, NameAlloc, classNameOf } from './utils';
 
 class Generator {
 	private binopRaw(e:ir.BinOpNode) {
@@ -93,15 +93,26 @@ class Generator {
 		}
 		if (s instanceof ir.ForNode) {
 			let out = IndentedString.EMPTY;
-			let TEMPNAME = this.method.names.alloc('__temp');
-			out = out.with(`var ${TEMPNAME} = `).with(this.expr(s.expr)).with('.iterator();');
-			out = out.with(`while (${TEMPNAME}.hasMore()) {`);
-			out = out.with(s.local.allocName).with(' = ').with(`${TEMPNAME}.next();`);
-			out = out.with(this.stm(s.body));
-			out = out.with('}');
-			//out = out.with('if (').with(this.expr(s.e)).with(')');
-			//out = out.with('{').with(this.stm(s.t)).with('}');
-			//out = out.with('else {').with(this.stm(s.f)).with('}');
+			let expr = s.expr;
+			let localName = s.local.allocName;
+			if (expr instanceof ir.BinOpNode && expr.op == '...') {
+				let MIN = this.method.names.alloc('__min');
+				let MAX = this.method.names.alloc('__max');
+				out = out.with(`var ${MIN} = `).with(this.expr(expr.l)).with(';');
+				out = out.with(`var ${MAX} = `).with(this.expr(expr.r)).with(';');
+				out = out.with(`for (${localName} = ${MIN}; ${localName} < ${MAX}; ${localName}++) {`);
+				out = out.with(this.stm(s.body));
+				out = out.with('}');
+
+			} else {
+				//console.info(classNameOf(s.expr));
+				let TEMPNAME = this.method.names.alloc('__temp');
+				out = out.with(`var ${TEMPNAME} = `).with(this.expr(s.expr)).with('.iterator();');
+				out = out.with(`while (${TEMPNAME}.hasMore()) {`);
+				out = out.with(localName).with(' = ').with(`${TEMPNAME}.next();`);
+				out = out.with(this.stm(s.body));
+				out = out.with('}');
+			}
 			return out;
 		}
 		if (s instanceof ir.WhileNode) {
