@@ -1,4 +1,11 @@
 
 function dup(a:Int) => a * 2;
 
-return dup(2);
+var result = 0;
+var end = dup(999);
+
+for (n in 0 ... end) {
+	result += n;
+}
+
+return result;

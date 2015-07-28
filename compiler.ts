@@ -124,7 +124,7 @@ class Compiler {
 			let lazy = (e.init.initType._text == '=>');
 			let initExpr = e.init.expr;
 			let initValue = this.expr(initExpr, resolver);
-			let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.Unknown);
+			let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.holder());
 			resolver.add(local);
 			return b.exprstm(b.assign(b.local(local), initValue));
 		} else if (e instanceof syntax.Stms) {
@@ -135,7 +135,7 @@ class Compiler {
 		} else if (e instanceof syntax.Function) {
 			this.ensureClass();
 			let methodName = e.name._text;
-			let method = this.clazz.createMethod(methodName, ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC)
+			let method = this.clazz.createMethod(methodName, ir.Types.holder(), ir.IrModifiers.STATIC_PUBLIC)
 			method.bodyNode = e.body;
 			for (let arg of e.args.args) {
 				method.addParam(arg.name.text, ir.Types.Int);
@@ -206,6 +206,7 @@ class Compiler {
 			let method = this.completeMethods.shift();
 			this.method = method;
 			method.body = b.stms([this.stm(method.bodyNode, method.resolver)]);
+			method.finalize();
 		}
 		this.method = oldMethod;
 	}

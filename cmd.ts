@@ -12,8 +12,14 @@ var interpreter:string = process.argv[0];
 var script:string = process.argv[1];
 var argv:string[] = process.argv.slice(2);
 
-console.log('CMD');
-console.log(argv);
+//console.log('CMD');
+//console.log(argv);
 vfs.cwd();
 
-console.log(lang_services.compile(vfs.cwd().access('test.exp')));
+if (argv.length == 0) {
+	console.log('explang <file.exp>');
+	process.exit(-1);
+}
+let code = lang_services.compile(vfs.cwd().access(argv[0]));
+//console.log(code);
+console.log(eval(code));

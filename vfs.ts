@@ -41,13 +41,13 @@ export class LocalVfs extends Vfs {
 	
 	write(path:string, data:Uint8Array) {
 		path = this.normalizePath(path);
-		console.log('writting', path, data.length);
+		//console.log('writting', path, data.length);
 		require('fs').writeFileSync(path, new Buffer(data));
 	}
 
 	read(path:string):Uint8Array {
 		path = this.normalizePath(path);
-		console.log('reading', path);
+		//console.log('reading', path);
 		return new Uint8Array(require('fs').readFileSync(path));
 	}
 }

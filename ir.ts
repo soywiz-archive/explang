@@ -50,9 +50,11 @@ export class IrOperator {
 }
 
 export class IrMember {
-	type: Type;
-		
 	public constructor(public name:string, public containingClass:IrClass) {
+	}
+	
+	get type():Type {
+		return Types.Invalid;
 	}
 	
 	get module() { return this.containingClass.module; }
@@ -95,6 +97,12 @@ export class IrMethod extends IrMember {
 		this.resolver = new LocalResolver(new MethodResolver(this));
 	}
 	
+	get type() {
+		//let result = Analyzer.analyze(this.body);
+		//this.retval.canAssign(result.returnType);
+		return Types.func(this.retval, this.params.params.map(p => p.type));
+	}
+	
 	get fqname() { return this.containingClass.name + '::' + this.name; }
 	
 	addParam(name:string, type:Type, init?:Expression) {
@@ -105,6 +113,11 @@ export class IrMethod extends IrMember {
 		let local = new IrLocal(name, this.names.alloc(name), type, this);
 		this.locals.push(local);
 		return local;
+	}
+	
+	finalize() {
+		let result = Analyzer.analyze(this.body);
+		this.retval.canAssign(result.returnType);
 	}
 }
 
@@ -153,6 +166,9 @@ export class IrClass {
 export class Type {
 	toString() { return '$TYPE'; }
 	get arrayElement() { return Types.getElement(this); }
+	canAssign(other:Type) {
+		return true;
+	}
 }
 
 export class ClassType extends Type {
@@ -179,7 +195,7 @@ export class FunctionType extends Type {
 }
 
 export class Generic {
-	constructor(public name:string) { }
+	constructor(public name:string, public constraints?:any) { }
 	toString() { return this.name; }
 }
 
@@ -196,6 +212,19 @@ export class SpecificType extends Type {
 	toString() { return this.specifics.length ? `${this.base}<${this.specifics.join(', ')}>` :`${this.base}` ; }
 }
 
+export class HolderType extends Type {
+	public referenced:Type = null;
+	public constructor() { super(); }
+	toString() {
+		if (this.referenced == null) return '<Unknown>';
+		return `${this.referenced}`; 
+	}
+	canAssign(other:Type) {
+		if (this.referenced == null) this.referenced = other;
+		return this.referenced.canAssign(other);
+	}
+}
+
 export class Types {
 	public static Void = new PrimitiveType('Void');
 	public static Bool = new PrimitiveType('Bool');
@@ -208,10 +237,16 @@ export class Types {
 	private static Array = new PrimitiveType('Array');
 	private static Iterable = new PrimitiveType('Iterable');
 	private static Iterator = new PrimitiveType('Iterator');
-	public static Unknown = new PrimitiveType('Unknown');
+	private static Unknown = new PrimitiveType('Unknown');
+	public static Invalid = new PrimitiveType('Invalid');
 	
 	static array(element:Type):ArrayType { return new ArrayType(element); }
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
+	
+	static holder():HolderType {
+		return new HolderType();
+	}
+	
 	static iterable(type:Type):SpecificType {
 		return new SpecificType(Types.Iterable, [type]);
 	}
@@ -239,6 +274,10 @@ export class Types {
 		return type;
 	}
 	
+	static unify(types:Type[]) {
+		return types[0];
+	}
+	
 	static access(type:Type, name:string):IrMember {
 		if (type instanceof ClassType) {
 			return type.clazz.getMember(name);
@@ -257,7 +296,12 @@ export class Node {
 	}
 } 
 
-export class Expression extends Node { constructor(public type:Type) { super(); } }
+export class Expression extends Node {
+	constructor(public type:Type) {
+		super();
+		if (type == null) throw new Error("Trying to build a expression of null type");
+	}
+}
 export class Statement extends Node { }
 export class LeftValue extends Expression { }
 export class BinOpNode extends Expression { public constructor(type:Type, public op:string, public l:Expression, public r:Expression) { super(type); } }
@@ -387,6 +431,46 @@ export class Statements extends Statement {
 	}
 }
 
+export class AnalyzerResult {
+	returns:ReturnNode[] = [];
+	
+	get returnType() {
+		return Types.unify(this.returns.map(r => r.type));
+	}
+}
+
+export class Visitor {
+	node(node:Node):void {
+		if (node instanceof ReturnNode) {
+			this.nodeReturn(node);
+			return;
+		}
+		if (node instanceof Statements) {
+			for (let child of node.nodes) this.node(child);
+			this.nodeStatements(node);
+			return;
+		}
+		throw new Error(`Can't handle ${node}`);
+	}
+	
+	nodeReturn(node:ReturnNode) { }
+	nodeStatements(node:Statements) { }
+}
+
+export class Analyzer extends Visitor {
+	result = new AnalyzerResult();
+	
+	static analyze(node:Node):AnalyzerResult {
+		let analyzer = new Analyzer();
+		analyzer.node(node);
+		return analyzer.result;
+	}
+	
+	nodeReturn(node:ReturnNode) {
+		this.result.returns.push(node);
+	}
+}
+
 export class ExpressionStm extends Statement { constructor(public expression:Expression) { super(); } }
 export class IfNode extends Statement { constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
 export class ForNode extends Statement { constructor(public local:IrLocal, public expr:Expression, public body:Statement) { super(); } }
@@ -422,22 +506,26 @@ for (var priority = 0; priority < oops.length; priority++) {
 }
 
 class BinOpNodeTemp extends Expression {
-	constructor(public op:string, public l:Expression, public r:Expression) { super(null); }
+	constructor(public op:string, public l:Expression, public r:Expression) { super(Types.Invalid); }
 	
 	convert(module:IrModule):BinOpNode {
 		var l = (this.l instanceof BinOpNodeTemp) ? (<BinOpNodeTemp>this.l).convert(module) : this.l;
 		var r = (this.r instanceof BinOpNodeTemp) ? (<BinOpNodeTemp>this.r).convert(module) : this.r;
 		var ret:Type = Types.Unknown;
 		switch (this.op) {
-			case '=': ret = r.type; break;
+			case '=':
+				ret = r.type;
+				if (!ret) throw new Error('Binexp[1] type == null');
+				break;
 			case '==': case '!=': case '<': case '>': case '<=': case '>=':
 			case '&&': case '||':
 				ret = Types.Bool;
 				break;
 			default:
 				var op = module.operators.getBinop(this.op, l.type, r.type);
-				if (op == null) throw new Error(`Unknown operator ${l.type} ${this.op} ${r.type}`);
+				if (op == null) throw new Error(`BinOpNodeTemp: Unknown operator ${l.type} ${this.op} ${r.type}`);
 				ret = op.result;
+				if (!ret) throw new Error('Binexp[2] type == null');
 				break;
 		}
 		return new BinOpNode(ret, this.op, l, r);
