@@ -11,7 +11,7 @@ export class IrModule {
 			'+=']) {
 			this.operators.addBinop(new IrOperator(this, op, Types.Int, Types.Int, Types.Int, null));
 		}
-		this.operators.addBinop(new IrOperator(this, '...', Types.Int, Types.Int, Types.Iterable, null));
+		this.operators.addBinop(new IrOperator(this, '...', Types.Int, Types.Int, Types.iterable(Types.Int), null));
 	}
 
 	createClass(name:string) {
@@ -169,12 +169,31 @@ export class PrimitiveType extends Type {
 
 export class ArrayType extends Type {
 	public constructor(public element:Type) { super(); }
-	toString() { return this.element + '[]'; }
+	//toString() { return `${this.element}[]`; }
+	toString() { return `Array<${this.element}>`; }
 }
 
 export class FunctionType extends Type {
 	public constructor(public retval:Type, public args:Type[]) { super(); }
 	toString() { return '(' + this.args.join(', ') + ') => ' + this.retval; }
+}
+
+export class Generic {
+	constructor(public name:string) { }
+	toString() { return this.name; }
+}
+
+export class GenericType extends Type {
+	public constructor(public base:Type, public generics:Generic[]) { super(); }
+	toString() { return this.generics.length ? `${this.base}<${this.generics.join(', ')}>` :`${this.base}` ; }
+	toSpecific(map:Map<string, Type>):SpecificType {
+		return new SpecificType(this.base, this.generics.map(g => map.get(g.name)));
+	}
+}
+
+export class SpecificType extends Type {
+	public constructor(public base:Type, public specifics:Type[]) { super(); }
+	toString() { return this.specifics.length ? `${this.base}<${this.specifics.join(', ')}>` :`${this.base}` ; }
 }
 
 export class Types {
@@ -186,16 +205,31 @@ export class Types {
 	public static Float = new PrimitiveType('Float');
 	public static Double = new PrimitiveType('Double');
 	public static String = new PrimitiveType('String');
-	public static Iterable = new PrimitiveType('Iterable');
-	public static Iterator = new PrimitiveType('Iterator');
+	private static Array = new PrimitiveType('Array');
+	private static Iterable = new PrimitiveType('Iterable');
+	private static Iterator = new PrimitiveType('Iterator');
 	public static Unknown = new PrimitiveType('Unknown');
 	
 	static array(element:Type):ArrayType { return new ArrayType(element); }
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
+	static iterable(type:Type):SpecificType {
+		return new SpecificType(Types.Iterable, [type]);
+	}
+	static iterator(type:Type):SpecificType {
+		return new SpecificType(Types.Iterable, [type]);
+	}
+
+	static isSpecificBaseType(type:Type, base:Type) {
+		return type instanceof SpecificType && type.base == base;
+	}
+	
+	static isIterable(type:Type) { return Types.isSpecificBaseType(type, Types.Iterable); }
+	static isIterator(type:Type) { return Types.isSpecificBaseType(type, Types.Iterator); }
 	
 	static getElement(type:Type) {
-		// @TODO: HACK
-		if (type == Types.Iterable) return Types.Int;
+		if (type instanceof SpecificType && type.specifics.length) {
+			return type.specifics[0];
+		}
 		if (type instanceof ArrayType) return type.element;
 		return Types.Unknown;
 	}

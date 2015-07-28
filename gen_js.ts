@@ -37,15 +37,10 @@ class Generator {
 		
 		if (e instanceof ir.BinOpNode) {
             let type = e.type;
-            switch (type) {
-                case ir.Types.Int: return out.with('((').with(this.binopRaw(e)).with(')|0)');
-                case ir.Types.Bool: return out.with('!!(').with(this.binopRaw(e)).with(')');
-				case ir.Types.Iterable: return this.binopRaw(e);
-                default:
-                    throw new Error(`Unhandled type ${type}`);
-            }
-            //return this.w.write(`${node.value}`);
-            return out;
+			if (type == ir.Types.Int) return out.with('((').with(this.binopRaw(e)).with(')|0)');
+			if (type == ir.Types.Bool) return out.with('!!(').with(this.binopRaw(e)).with(')');
+			if (ir.Types.isIterable(type)) return this.binopRaw(e);
+            throw new Error(`Unhandled type ${type}`);
         }
 		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
@@ -156,11 +151,13 @@ class Generator {
 			let out = IndentedString.EMPTY;
 			for (let local of method.locals) {
 				out = out.with('var ' + local.allocName);
-				switch (local.type) {
-					case ir.Types.Int: out = out.with(' = 0'); break;
-					// @TODO: HACK!
-					case ir.Types.Iterable: out = out.with(' = null'); break;
-					default: throw new Error(`Unhandled type ${local.type} generating variables`);
+				let ltype = local.type;
+				if (ltype == ir.Types.Int) {
+					out = out.with(' = 0');
+				} else if (ir.Types.isIterable(ltype)) {
+					out = out.with(' = null');
+				} else {
+					throw new Error(`Unhandled type ${local.type} generating variables`);
 				}
 				out = out.with(';\n');
 			}
