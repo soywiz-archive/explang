@@ -236,7 +236,7 @@ export class ReturnNode extends Statement {
 	}
 }
 
-export class ImmediateExpression extends Expression { constructor(type:Type, public value:any) { super(type); } }
+export class Immediate extends Expression { constructor(type:Type, public value:any) { super(type); } }
 export class UnknownExpression extends Expression { constructor() { super(Types.Unknown); } }
 
 export interface ResolverItem {
@@ -415,7 +415,7 @@ export class NodeBuilder {
 	stms(list:Statement[]) { return new Statements(list); }
 	ret(expr?:Expression) { return new ReturnNode(expr); }
 	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
-	int(value:number) { return new ImmediateExpression(Types.Int, value | 0); }
+	int(value:number) { return new Immediate(Types.Int, value | 0); }
 	unknown() { return new UnknownExpression(); }
 	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
 	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }

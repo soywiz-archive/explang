@@ -51,7 +51,7 @@ class Generator {
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
 		if (e instanceof ir.ArrayAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('[').with(this.expr(e.index)).with(']');
 		if (e instanceof ir.UnknownExpression) return IndentedString.EMPTY.with(`$unknown$`);
-		if (e instanceof ir.ImmediateExpression) return IndentedString.EMPTY.with(`${e.value}`);
+		if (e instanceof ir.Immediate) return IndentedString.EMPTY.with(`${e.value}`);
 		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.allocName}`);
@@ -96,14 +96,20 @@ class Generator {
 			let expr = s.expr;
 			let localName = s.local.allocName;
 			if (expr instanceof ir.BinOpNode && expr.op == '...') {
-				let MIN = this.method.names.alloc('__min');
-				let MAX = this.method.names.alloc('__max');
-				out = out.with(`var ${MIN} = `).with(this.expr(expr.l)).with(';');
-				out = out.with(`var ${MAX} = `).with(this.expr(expr.r)).with(';');
-				out = out.with(`for (${localName} = ${MIN}; ${localName} < ${MAX}; ${localName}++) {`);
-				out = out.with(this.stm(s.body));
-				out = out.with('}');
-
+				let l = expr.l, r = expr.r;
+				if (l instanceof ir.Immediate && r instanceof ir.Immediate && l.type == ir.Types.Int && r.type == ir.Types.Int) {
+					out = out.with(`for (${localName} = ${l.value}; ${localName} < ${r.value}; ${localName}++) {`);
+					out = out.with(this.stm(s.body));
+					out = out.with('}');
+				} else {
+					let MIN = this.method.names.alloc('__min');
+					let MAX = this.method.names.alloc('__max');
+					out = out.with(`var ${MIN} = `).with(this.expr(l)).with(';');
+					out = out.with(`var ${MAX} = `).with(this.expr(r)).with(';');
+					out = out.with(`for (${localName} = ${MIN}; ${localName} < ${MAX}; ${localName}++) {`);
+					out = out.with(this.stm(s.body));
+					out = out.with('}');
+				}
 			} else {
 				//console.info(classNameOf(s.expr));
 				let TEMPNAME = this.method.names.alloc('__temp');
