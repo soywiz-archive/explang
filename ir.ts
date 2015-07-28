@@ -1,6 +1,6 @@
 /// <reference path="./defs.d.ts" />
 
-import { Map2, Map3, UserData, NameAlloc } from './utils';
+import { Map2, Map3, UserData, NameAlloc, classNameOf } from './utils';
 
 export class IrModule {
 	public classes:IrClass[] = [];
@@ -297,25 +297,54 @@ export class Node {
 } 
 
 export class Expression extends Node {
-	constructor(public type:Type) {
-		super();
-		if (type == null) throw new Error("Trying to build a expression of null type");
-	}
+	constructor() { super(); }
+	get type():Type { throw new Error(`Must override Expression[${classNameOf(this)}].type`); }
 }
 export class Statement extends Node { }
 export class LeftValue extends Expression { }
-export class BinOpNode extends Expression { public constructor(type:Type, public op:string, public l:Expression, public r:Expression) { super(type); } }
-export class UnopPost extends Expression { constructor(type:Type, public l:Expression, public op:string) { super(type); } }
-export class ReturnNode extends Statement {
-	type: Type;
-	public constructor(public optValue?:Expression) {
-		super();
-		this.type = optValue ? optValue.type : Types.Void;
+export class BinOpNode extends Expression {
+	public constructor(public module:IrModule, public op:string, public l:Expression, public r:Expression) { super(); }
+	get type() {
+		let l = this.l, r = this.r;
+		var ret:Type = Types.Unknown;
+		switch (this.op) {
+			case '=':
+				ret = r.type;
+				if (!ret) throw new Error('Binexp[1] type == null');
+				break;
+			case '==': case '!=': case '<': case '>': case '<=': case '>=':
+			case '&&': case '||':
+				ret = Types.Bool;
+				break;
+			default:
+				var op = this.module.operators.getBinop(this.op, l.type, r.type);
+				if (op == null) throw new Error(`BinOpNodeTemp: Unknown operator ${l.type} ${this.op} ${r.type}`);
+				ret = op.result;
+				if (!ret) throw new Error('Binexp[2] type == null');
+				break;
+		}
+		return ret;
 	}
 }
+export class UnopPost extends Expression {
+	constructor(public module:IrModule, public l:Expression, public op:string) { super(); }
+	get type() { return this.l.type; }
+}
+export class ReturnNode extends Statement {
+	public constructor(public optValue?:Expression) {
+		super();
+	}
+	get type() { return this.optValue ? this.optValue.type : Types.Void; }
+}
 
-export class Immediate extends Expression { constructor(type:Type, public value:any) { super(type); } }
-export class UnknownExpression extends Expression { constructor() { super(Types.Unknown); } }
+export class Immediate extends Expression {
+	constructor(private _type:Type, public value:any) { super(); }
+	get type() { return this._type; }
+}
+export class UnknownExpression extends Expression {
+	constructor() { super(); }
+	get type() { return Types.Unknown; }
+}
 
 export interface ResolverItem {
 	type: Type;
@@ -477,13 +506,14 @@ export class ForNode extends Statement { constructor(public local:IrLocal, publi
 export class FastForNode extends Statement { constructor(public local:IrLocal, public min:number, public max:number, public body:Statement) { super(); } }
 export class Fast2ForNode extends Statement { constructor(public local:IrLocal, public min:Expression, public max:Expression, public body:Statement) { super(); } }
 export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
-export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(retval); } }
-export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(local.type); } }
-export class MemberExpression extends LeftValue { constructor(public member:IrMember) { super(member.type); } }
-export class ArgumentExpression extends LeftValue { constructor(public arg:IrParameter) { super(arg.type); } }
-export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(clazz); } }
-export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(member.type); } }
-export class ArrayAccess extends LeftValue { constructor(public left:Expression, public index:Expression) { super(Types.getElement(left.type)); } }
+
+export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(); } get type() { return this.retval; } }
+export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(); } get type() { return this.local.type; } }
+export class MemberExpression extends LeftValue { constructor(public member:IrMember) { super(); } get type() { return this.member.type; } }
+export class ArgumentExpression extends LeftValue { constructor(public arg:IrParameter) { super(); } get type() { return this.arg.type; } }
+export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(); } get type() { return this.clazz; } }
+export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(); } get type() { return this.member.type; } }
+export class ArrayAccess extends LeftValue { constructor(public left:Expression, public index:Expression) { super(); } get type() { return Types.getElement(this.left.type); } }
 
 var oops = [
     ["**"],
@@ -504,34 +534,6 @@ for (var priority = 0; priority < oops.length; priority++) {
     let oop = oops[priority];
     for (let op of oop) priorityOps[op] = priority + 1;
 }
-
-class BinOpNodeTemp extends Expression {
-	constructor(public op:string, public l:Expression, public r:Expression) { super(Types.Invalid); }
-	
-	convert(module:IrModule):BinOpNode {
-		var l = (this.l instanceof BinOpNodeTemp) ? (<BinOpNodeTemp>this.l).convert(module) : this.l;
-		var r = (this.r instanceof BinOpNodeTemp) ? (<BinOpNodeTemp>this.r).convert(module) : this.r;
-		var ret:Type = Types.Unknown;
-		switch (this.op) {
-			case '=':
-				ret = r.type;
-				if (!ret) throw new Error('Binexp[1] type == null');
-				break;
-			case '==': case '!=': case '<': case '>': case '<=': case '>=':
-			case '&&': case '||':
-				ret = Types.Bool;
-				break;
-			default:
-				var op = module.operators.getBinop(this.op, l.type, r.type);
-				if (op == null) throw new Error(`BinOpNodeTemp: Unknown operator ${l.type} ${this.op} ${r.type}`);
-				ret = op.result;
-				if (!ret) throw new Error('Binexp[2] type == null');
-				break;
-		}
-		return new BinOpNode(ret, this.op, l, r);
-	}
-}
-
 
 export class NodeBuilder {
 	constructor(public module:IrModule) {
@@ -558,7 +560,7 @@ export class NodeBuilder {
 		return new ForNode(local, e, body);
 	}
 	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
-	unopPost(expr:Expression, op:string) { return new UnopPost(expr.type, expr, op); }
+	unopPost(expr:Expression, op:string) { return new UnopPost(this.module, expr, op); }
 	binops(operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
         var prev = exprs.shift();
@@ -567,22 +569,22 @@ export class NodeBuilder {
             let next = exprs.shift();
             let nextPriority = priorityOps[op];
 			if (nextPriority === undefined) throw new Error(`Can't find operator ${op}`);
-            if ((prev instanceof BinOpNodeTemp) && nextPriority < prevPriority) {
-                var pbop = <BinOpNodeTemp>prev;
-                prev = new BinOpNodeTemp(pbop.op, pbop.l, new BinOpNodeTemp(op, pbop.r, next))
+            if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
+                var pbop = <BinOpNode>prev;
+                prev = new BinOpNode(this.module, pbop.op, pbop.l, new BinOpNode(this.module, op, pbop.r, next))
             } else {
-                prev = new BinOpNodeTemp(op, prev, next);
+                prev = new BinOpNode(this.module, op, prev, next);
             }
             prevPriority = nextPriority;
         }
 
-        return (<BinOpNodeTemp>prev).convert(this.module);
+        return prev;
 	}
 	_this(clazz:Type) { return new ThisExpression(clazz); }
 	local(local:IrLocal) { return new LocalExpression(local); }
 	member(member:IrMethod) { return new MemberExpression(member); }
 	arg(arg:IrParameter) { return new ArgumentExpression(arg); }
 	assign(left:Expression, right:Expression) {
-		return new BinOpNode(right.type, '=', left, right);
+		return new BinOpNode(this.module, '=', left, right);
 	}
 }
