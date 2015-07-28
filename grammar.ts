@@ -3,6 +3,19 @@ import { classNameOf } from './utils';
 const DEBUG = false;
 //const DEBUG = true;
 
+export type E = PsiElement;
+
+export class ErrorInfo {
+	constructor(public e:E, public msg:string) { }
+	toString() { return `ERROR:${this.e.range}:${this.msg}`; }
+}
+
+export class ErrorList {
+    private errors: ErrorInfo[] = [];
+    add(error:ErrorInfo) { this.errors.push(error); }
+    getErrors() { return this.errors.slice(); }
+}
+
 export class TRange {
     public constructor(public min:number, public max:number, public reader:Reader) { }
     static combine(a:TRange, b:TRange):TRange {
@@ -168,6 +181,7 @@ type Skipper = (readerContext:ReaderContext) => void;
 
 export class ReaderContext {
     skipperStack:Skipper[] = [];
+    errors = new ErrorList();
     skipper:Skipper;
     public file:PsiFile;
     public constructor(public reader:Reader) {
@@ -176,6 +190,11 @@ export class ReaderContext {
             context.reader.matchEReg(/^\s+/);
         });
     }
+    
+    addError(msg:string) {
+        this.errors.add(new ErrorInfo(this.createEmptyBasePsi(), msg));
+    }
+    
     createBasePsi(children:PsiElement[] = [], range?:TRange):PsiElement {
         if (range == null) range = this.reader.createRange();
         return new PsiElement(this.file, range, children);
@@ -183,6 +202,10 @@ export class ReaderContext {
     createEmptyPsi<T extends PsiElement>(clazz:Class<T>, range?:TRange):T {
         if (range == null) range = this.reader.createRange();
         return PsiElement.create(clazz, this.file, range, []);
+    }
+    createEmptyBasePsi(range?:TRange):PsiElement {
+        if (range == null) range = this.reader.createRange();
+        return PsiElement.create(PsiElement, this.file, range, []);
     }
     createPsi<T extends PsiElement>(clazz:Class<T>, elements:T[]):T {
         var range:TRange;
@@ -270,8 +293,6 @@ export class PsiElement {
         }
     }
 }
-
-export type E = PsiElement;
 
 export function newVariadic(t:Class<any>, v:any[]) {
     switch (v.length) {
@@ -461,19 +482,17 @@ export class GAny extends GSeqAny {
             const node = item.m.match(context);
             if (DEBUG) console.log(`any -> ${node}`);
             if (node != null) {
-                if (result == null || node._complete) {
-                    result = node;
-                    if (node._complete) {
-                        complete = true;
-                        break;
-                    }
-                }
+                result = node;
+                complete = node._complete;
+                break;
             }
         }
         const end = reader.pos;
         
         if (result != null) {        
-            return this.build(context, reader.createRange(start, end), [result._element], [result], complete);
+            let result2 = this.build(context, reader.createRange(start, end), [result._element], [result], complete);
+            result2._complete = complete;
+            return result2;
         } else {
             return null;
         }
@@ -499,6 +518,7 @@ export class GOptional extends GBase {
         this.clazz = clazz;
         if (result == null) {
             result = this.build(context, reader.readRange(0), [], [], true); 
+            result._complete = true;
         }
         return result;
     }
@@ -540,6 +560,7 @@ export class GList extends GBase {
             } else {
                 if (it != null) children.push(it._element);
                 items.push(it);
+                if (!it._complete) complete = false;
             }
 
             let sep:N = null;
@@ -559,7 +580,9 @@ export class GList extends GBase {
         
         if (items.length < this.min) return null;
         
-        return <NodeList>this.build(context, reader.createRange(start, end), children, [items, separators], true);
+        let result = <NodeList>this.build(context, reader.createRange(start, end), children, [items, separators], true);
+        result._complete = complete;
+        return result;
     }
 }
 
@@ -579,11 +602,18 @@ export class GSeq extends GSeqAny {
         for (let item of this.items) {
             let m = item.m;
             if (m instanceof GSure) {
+                if (DEBUG) console.info('!! SURE');
                 sure = true;
                 continue;
             }
+            let optional = m instanceof GOptional;
             let node = item.m.match(context);
             all.push(node);
+            
+            if (node == null && sure) {
+                context.addError('Expected: ' + m);
+            }
+            
             if (node != null) {
                 elements.push(node._element);
                 if (node instanceof AnonymousAny) {
@@ -677,6 +707,7 @@ export class MatchResult<T extends N> {
     }
     get matched() { return this.node._complete; }
     get eof() { return this.context.reader.eof; }
+    get complete() { return this.node._complete; }
     get text() { return this.node ? this.node._element.text : '<unmatched>'; }
     get nodeType() { return this.node ? this.node._nodeType : null; }
 }

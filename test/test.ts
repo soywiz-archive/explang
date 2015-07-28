@@ -9,38 +9,27 @@ import compiler = require('../compiler');
 import assert = require("assert"); // node.js core module
 import vfs = require('../vfs');
 import syntax = require('../syntax');
+import services = require('../services');
 
 function testProgramJs(src:string, expectedJs:string) {
-	var grammarResult = grammar.match(syntax.Stms, src);
-	if (!grammarResult.matched) {
-		throw new Error(`Not matched ${grammarResult}`);
-	}
-	if (!grammarResult.eof) {
-		throw new Error(`Not end of file ${grammarResult}`);
-	}
-	var compilerResult = compiler.compile(grammarResult.node);
-	if (compilerResult.errors.length > 0) {
-		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
-	}
-	let generated = gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim();
+	const compilerResult = services.compileProgram(src);
+	const generated = gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim();
 	assert.equal(expectedJs, generated);
 }
 
-function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {
-	let grammarResult = grammar.match(syntax.Stms, src);
-	if (!grammarResult.matched) {
-		throw new Error(`Not matched ${grammarResult}`);
+function testProgramWithErrors(src:string, expectedError:string) {
+	try {
+		const compilerResult = services.compileProgram(src);
+		const generated = gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim();
+	} catch (e) {
+		assert.equal(`${e}`, expectedError);
 	}
-	if (!grammarResult.eof) {
-		throw new Error(`Not end of file ${grammarResult}`);
-	}
-	let compilerResult = compiler.compile(grammarResult.node);
-	if (compilerResult.errors.length > 0) {
-		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
-	}
-	
+}
+
+function testProgramEvalJs(src:string, expectedResult:any, args:string[] = []) {	
+	const compilerResult = services.compileProgram(src);
 	let result:any = undefined
-	let code = '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(' + JSON.stringify(args) + '); })()';
+	const code = '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(' + JSON.stringify(args) + '); })()';
 	try {
 		result = eval(code);
 	} catch (e) {
@@ -154,7 +143,11 @@ describe('test', () => {
 		testProgramEvalJs('return argv[0];', 'a', ['a', 'b']);
 		testProgramEvalJs('return argv[2 ** 0];', 'b', ['a', 'b']);
 	});
-
+	
+	it('infinite-loop-test', () => {
+		testProgramWithErrors('return 1', 'Error: ERROR:8:8:Expected: ;');
+	});
+	
 	/*
 	it('struct decl', () => {
 		testProgramEvalJs('struct Point(x:Float, y:Float) { }', 1, ['a', 'b']);

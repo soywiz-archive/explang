@@ -17,7 +17,7 @@ export class Stm extends N { constructor(e:E, public it:any) { super(e); } }
 @Any(Bool, Float, Int, Id) export class Literal extends N { constructor(e:E, public item:Bool|Float|Int|Id) { super(e); }}
 @Any('++', '--', '+', '-', '!', '~') export class Unop extends N { constructor(e:E, public op:string) { super(e);} }
 
-@Seq('<', list(Id, ',', 1)) export class Generics extends N { constructor(e:E, ids:Id[]) { super(e); } }
+@Seq('<', list(Id, ',', 1)) export class Generics extends N { constructor(e:E, public ids:Id[], private commas:N[]) { super(e); } }
 @Seq(Id, opt(Generics)) export class IdWithGenerics extends N { constructor(e:E, public id:Id, public generics:Generics) { super(e); } }
 
 @Any(

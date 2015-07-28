@@ -3,7 +3,7 @@
 import ir = require('./ir');
 import utils = require('./utils');
 import syntax = require('./syntax');
-import { E, N } from './grammar';
+import { E, N, ErrorInfo } from './grammar';
 import { classNameOf } from './utils';
 import { Resolver, LocalResolver } from './ir';
 
@@ -221,11 +221,6 @@ class Compiler {
 		this._compile(node);
 		this.doCompleteMethods();
 	}
-}
-
-export class ErrorInfo {
-	constructor(public e:E, public msg:string) { }
-	toString() { return `ERROR:${this.e.range}:${this.msg}`; }
 }
 
 export class CompileResult {

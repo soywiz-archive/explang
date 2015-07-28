@@ -1,5 +1,5 @@
 
-function dup(a:Int) => a * 2;
+function dup(a:Int):Int => a * 2;
 
 var result = 0;
 var end = dup(999);

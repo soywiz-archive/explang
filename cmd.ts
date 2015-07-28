@@ -2,7 +2,7 @@
 
 import vfs = require('./vfs');
 import compiler = require('./compiler');
-import lang_services = require('./lang_services');
+import services = require('./services');
 
 declare function require(name:string):any;
 declare class Buffer { constructor(data:any); }
@@ -20,6 +20,6 @@ if (argv.length == 0) {
 	console.log('explang <file.exp>');
 	process.exit(-1);
 }
-let code = lang_services.compile(vfs.cwd().access(argv[0]));
+let code = services.compile(vfs.cwd().access(argv[0]));
 //console.log(code);
 console.log(eval(code));

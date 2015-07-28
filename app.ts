@@ -2,7 +2,7 @@ import syntax = require('./syntax');
 import vfs = require('./vfs');
 import { N, match } from './grammar';
 import { classNameOf } from './utils';
-import { compile } from './lang_services';
+import { compile } from './services';
 
 let file = vfs.memoryFile(`
 	class Test { }
