@@ -146,6 +146,7 @@ describe('test', () => {
 	
 	it('infinite-loop-test', () => {
 		testProgramWithErrors('return 1', 'Error: ERROR:8:8:Expected: ;');
+		testProgramWithErrors('return 1+', 'Error: ERROR:8:12:expected Expr1,ERROR:12:12:Expected: ;');
 	});
 	
 	/*

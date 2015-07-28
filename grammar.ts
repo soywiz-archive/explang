@@ -191,8 +191,9 @@ export class ReaderContext {
         });
     }
     
-    addError(msg:string) {
-        this.errors.add(new ErrorInfo(this.createEmptyBasePsi(), msg));
+    addError(msg:string, element:PsiElement = null) {
+        if (element == null) element = this.createEmptyBasePsi();
+        this.errors.add(new ErrorInfo(element, msg));
     }
     
     createBasePsi(children:PsiElement[] = [], range?:TRange):PsiElement {
@@ -383,6 +384,7 @@ export class GBase {
         throw "Must override match";
     }
     
+    toShortFirst() { return '<GBASE>'; }
     toString() { return classNameOf(this); }
 }
 
@@ -396,10 +398,13 @@ export class GRegExp extends GBase {
         return result ? this.build(context, result, [], [], true) : null;
     }
     
+    toShortFirst():string { return (this.clazz != null) ? classNameOf(this.clazz) : `${this.reg}`; }
     toString() { return `${this.reg}`; }
 }
 
 export class GLiteral extends GBase {
+    toShortFirst() { return this.lit; }
+    
 	public constructor(public lit:string) { super(null); }
 
 	match(context:ReaderContext):N {
@@ -414,6 +419,9 @@ export class GLiteral extends GBase {
 
 export class GLiteralList extends GBase {
     private litsOpt:Literals;
+
+    toShortFirst() { return this.lits.join('|'); }
+
 	public constructor(clazz:Class<N>, public lits:string[]) {
         super(clazz);
         this.litsOpt = Literals.fromList(lits);
@@ -448,13 +456,17 @@ export class GBaseInfo {
 }
 
 export class GSeqAny extends GBase {
-    protected items:GBaseInfo[] = null;
+    private _items:GBaseInfo[] = null;
     protected paramcount = 0;
 
-	public constructor(clazz:Class<N>, public rawItems:any[]) { super(clazz); }
+	public constructor(clazz:Class<N>, public rawItems:any[]) {
+        super(clazz);
+        if (rawItems.length < 1) throw new Error('Items in matcher must not be empty');
+        for (let i of rawItems) if (i == null) throw new Error('Items in matcher must not be null');
+    }
 
-    protected prepareOnce() {
-        if (this.items != null) return;
+    private prepareOnce() {
+        if (this._items != null) return;
         var out:GBaseInfo[] = [];
         this.paramcount = 0;
         for (let item of this.rawItems) {
@@ -462,14 +474,22 @@ export class GSeqAny extends GBase {
             out.push(i);
             if (i.store) this.paramcount++;
         }
-        this.items = out;
+        this._items = out;
+    }
+    protected get items() {
+        this.prepareOnce();
+        return this._items;
     }
 }
 
 export class GAny extends GSeqAny {
+    toShortFirst() {
+        return this.clazz ? classNameOf(this.clazz) : this.items.map(v => v.m.toShortFirst()).join('|');
+    }
+    toString() { return '[' + this.items.join('|') + ']'; }
+
 	match(context:ReaderContext):N {
         const reader = context.reader; 
-        this.prepareOnce();
         context.skip();
         const start = reader.pos;
         let result:N = null;
@@ -497,14 +517,14 @@ export class GAny extends GSeqAny {
             return null;
         }
     }
-    
-    toString() { this.prepareOnce(); return '[' + this.items.join('|') + ']'; }
 }
 
 export class GSure extends GBase { }
 
 export class GOptional extends GBase {
     private elementInfo:GBaseInfo = null;
+    
+    toShortFirst() { return this.elementInfo.m.toShortFirst() + '?'; }
     
     constructor(public element:ARG) {
         super(null);
@@ -529,7 +549,9 @@ export class GList extends GBase {
     public elementInfo:GBaseInfo;
     public separatorInfo:GBaseInfo;
     
-    constructor(clazz:Class<N>, public element:Class<N>, public separator:ARG, public min:number, public tailsep:boolean = false) {
+    toShortFirst() { return 'LIST(' + classNameOf(this.element) + ',' + this.separatorInfo.m.toShortFirst() + ')'; }
+    
+    constructor(clazz:Class<N>, public element:Class<N>, public separator:ARG, public min:number, public enableTailSeparator:boolean = false) {
         super(clazz);
     }
     
@@ -550,6 +572,7 @@ export class GList extends GBase {
         
         let start = reader.pos;
         let complete = true;
+        let lastNotNull = 0;
         while (true) {
             let it = this.elementInfo.m.match(context);
             if (DEBUG) console.log('result:' + it);
@@ -558,6 +581,7 @@ export class GList extends GBase {
                 if (DEBUG) console.log('it break');
                 break;
             } else {
+                lastNotNull = 1;
                 if (it != null) children.push(it._element);
                 items.push(it);
                 if (!it._complete) complete = false;
@@ -570,10 +594,18 @@ export class GList extends GBase {
                     if (DEBUG) console.log('sep break');
                     break;
                 } else {
+                    lastNotNull = 2;
                     separators.push(sep);
                 }
             }
         }
+        
+        let isTailSeparator = (lastNotNull == 2);
+        
+        if (isTailSeparator && !this.enableTailSeparator) {
+            context.addError('expected ' + this.elementInfo.m.toShortFirst(), separators[separators.length - 1]._element);
+        }
+        
         let end = reader.pos;
         if (DEBUG) console.log('items:', items.length, items);
         if (DEBUG) console.log('separators:', separators.length, separators);
@@ -587,11 +619,11 @@ export class GList extends GBase {
 }
 
 export class GSeq extends GSeqAny {
-    toString() { this.prepareOnce(); return '(' + this.items.join(',') + ')'; }
+    toShortFirst() { return this.items[0].m.toShortFirst(); }
+    toString() { return '(' + this.items.join(',') + ')'; }
     
 	match(context:ReaderContext):N {
         const reader = context.reader; 
-        this.prepareOnce();
         context.skip();
         const all:N[] = [];
         const elements:PsiElement[] = [];
@@ -611,7 +643,7 @@ export class GSeq extends GSeqAny {
             all.push(node);
             
             if (node == null && sure) {
-                context.addError('Expected: ' + m);
+                context.addError('Expected: ' + m.toShortFirst());
             }
             
             if (node != null) {
