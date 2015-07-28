@@ -342,9 +342,9 @@ export class Expression extends Node {
 export class Statement extends Node { }
 export class LeftValue extends Expression { }
 export class BinOpNode extends Expression {
-	public constructor(psi:E, public module:IrModule, public op:string, public l:Expression, public r:Expression) { super(psi); }
+	public constructor(psi:E, public module:IrModule, public op:string, public left:Expression, public right:Expression) { super(psi); }
 	get type() {
-		let l = this.l, r = this.r;
+		let l = this.left, r = this.right;
 		var ret:Type = Types.Unknown;
 		switch (this.op) {
 			case '=':
@@ -557,7 +557,7 @@ export class Visitor {
 			return;
 		}
 		if (node instanceof ExpressionStm) { this.node(node.expression); this.nodeExpressionStm(node); return; }
-		if (node instanceof BinOpNode) { this.node(node.l); this.node(node.r); this.nodeBinop(node); return; }
+		if (node instanceof BinOpNode) { this.node(node.left); this.node(node.right); this.nodeBinop(node); return; }
 		if (node instanceof LocalExpression) { this.localExpr(node); return; }
 		if (node instanceof Immediate) { this.immediate(node); return; }
 		if (node instanceof IfNode) { this.node(node.expr); this.node(node.trueStm); this.node(node.falseStm); this.ifNode(node); return; }
@@ -673,7 +673,7 @@ export class NodeBuilder {
 	_for(psi:E, local:IrLocal, e:Expression, body:Statement):Statement {
 		if (e instanceof BinOpNode) {
 			if (e.op == '...') {
-				let l = e.l, r = e.r;
+				let l = e.left, r = e.right;
 				if (l instanceof Immediate && r instanceof Immediate && l.type == Types.Int && r.type == Types.Int) {
 					return new FastForNode(psi, local, l.value, r.value, body);
 				}
@@ -694,7 +694,7 @@ export class NodeBuilder {
 			if (nextPriority === undefined) throw new Error(`Can't find operator ${op}`);
             if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
                 var pbop = <BinOpNode>prev;
-                prev = new BinOpNode(psi, this.module, pbop.op, pbop.l, new BinOpNode(psi, this.module, op, pbop.r, next))
+                prev = new BinOpNode(psi, this.module, pbop.op, pbop.left, new BinOpNode(psi, this.module, op, pbop.right, next))
             } else {
                 prev = new BinOpNode(psi, this.module, op, prev, next);
             }

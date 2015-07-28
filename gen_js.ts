@@ -24,9 +24,9 @@ class Generator {
 				}
         }							
         if (func) out = out.with(`${func}(`);
-        out = out.with(this.expr(e.l));
+        out = out.with(this.expr(e.left));
         out = out.with(func ? `, ` : ` ${e.op} `);
-        out = out.with(this.expr(e.r));
+        out = out.with(this.expr(e.right));
         if (func) out = out.with(`)`);
 		return out;
 	}
@@ -40,7 +40,8 @@ class Generator {
 			if (type == ir.Types.Int) return out.with('((').with(this.binopRaw(e)).with(')|0)');
 			if (type == ir.Types.Bool) return out.with('!!(').with(this.binopRaw(e)).with(')');
 			if (ir.Types.isIterable(type)) return this.binopRaw(e);
-            throw new Error(`Unhandled type ${type}`);
+			if (type instanceof ir.ClassType) return this.binopRaw(e);
+            throw new Error(`gen_js.BinOpNode.Unhandled type ${type} ${e.op}`);
         }
 		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
@@ -168,10 +169,10 @@ class Generator {
 		} else {
 			if (type == ir.Types.Int) {
 				return IndentedString.EMPTY.with('0');
-			} else if (ir.Types.isIterable(type)) {
+			} else if (ir.Types.isIterable(type) || type instanceof ir.ClassType) {
 				return IndentedString.EMPTY.with('null');
 			} else {
-				throw new Error(`Unhandled type ${type} generating variables`);
+				throw new Error(`gen_js.getInit: Unhandled type ${type}`);
 			}
 		}
 	}

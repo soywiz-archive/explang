@@ -140,8 +140,8 @@ function irTypeToType(irtype:ir.Type) {
 function genbody(body:MethodBody, node:ir.Node) {
 	if (node == null) throw 'Node must not be null';
 	if (node instanceof ir.BinOpNode) {
-		genbody(body, node.l);
-		genbody(body, node.r);
+		genbody(body, node.left);
+		genbody(body, node.right);
 		body.binop(node.op);
 	} else if (node instanceof ir.ReturnNode) {
 		if (node.type != ir.Types.Void) genbody(body, node.optValue);

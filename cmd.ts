@@ -42,7 +42,8 @@ if (filename == null) {
 		if (e instanceof TypeError) {
 			console.log(e.stack);
 		} else if (e instanceof Error) {
-			console.log(e.message);
+			console.log(e.stack);
+			//console.log(e.message);
 		} else {
 			console.log(e);
 		}

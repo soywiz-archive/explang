@@ -3,6 +3,6 @@ class Test {
 	a = 20;
 }
 
-var a = 1+1;
-function dup(a:Int):Int => a * 2;
-return dup(3);
+var a = Test();
+a.demo = 30;
+return a.demo;
