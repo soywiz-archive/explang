@@ -73,12 +73,17 @@ class _If extends N { constructor(e:E, public expr:Expr, public codeTrue:Stm, pu
 @Seq('continue', sure(), ';') export class Continue extends N { constructor(e:E) { super(e); } }
 @Seq('break', sure(), ';') export class Break extends N { constructor(e:E) { super(e); } }
 @Seq('fallthrough', sure(), ';') export class Fallthrough extends N { constructor(e:E) { super(e); } }
-class _ClassType extends N { constructor(e:E, public name:IdWithGenerics, public body:Stm) { super(e); } }
-@Seq('class', sure(), IdWithGenerics, Stm) export class ClassType extends _ClassType { }
-@Seq('interface', sure(), IdWithGenerics, Stm) export class InterfaceType extends _ClassType { }
-@Seq('extension', sure(), IdWithGenerics, Stm) export class ExtensionType extends _ClassType { }
-@Seq('enum', sure(), IdWithGenerics, Stm) export class EnumType extends _ClassType { }
-@Seq('struct', sure(), IdWithGenerics, '(', ')', Stm) export class StructType extends _ClassType { }
+
+@Seq(Id, opt(TypeTag), '=', Expr, ';') export class FieldDecl extends N { constructor(e:E, public name:Id, public optTypeTag:TypeTag, public init:Expr) { super(e); } }
+@Any(FieldDecl) export class MemberDecl extends N { constructor(e:E, public it:FieldDecl) { super(e); } }
+@Seq('{', sure(), list(MemberDecl, null, 0), '}') export class MemberDecls extends N { constructor(e:E, public members:MemberDecl[]) { super(e); } }
+
+class _ClassType extends N { constructor(e:E, public name:IdWithGenerics, public members:MemberDecls) { super(e); } }
+@Seq('class', sure(), IdWithGenerics, MemberDecls) export class ClassType extends _ClassType { }
+@Seq('interface', sure(), IdWithGenerics, MemberDecls) export class InterfaceType extends _ClassType { }
+@Seq('extension', sure(), IdWithGenerics, MemberDecls) export class ExtensionType extends _ClassType { }
+@Seq('enum', sure(), IdWithGenerics, MemberDecls) export class EnumType extends _ClassType { }
+@Seq('struct', sure(), IdWithGenerics, '(', ')', MemberDecls) export class StructType extends _ClassType { }
 @Seq(Id, opt(TypeTag), opt(Init2)) export class VarDecl extends N { constructor(e:E, public name:Id, public type?:TypeTag, public init?:Init2) { super(e); } }
 @Seq(opt('lazy'), 'var', sure(), list(VarDecl, ',', 1), ';') export class Vars extends N { constructor(e:E, public lazy:N, public vars:VarDecl[]) { super(e); } }
 

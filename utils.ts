@@ -127,7 +127,7 @@ export class IndentedString {
 		return new IndentedString([this, 0, cb(), 1]);
 	}
 	
-	with(value:any) {
+	with(value:string|IndentedString) {
 		return new IndentedString([this, value]);
 	}
 	

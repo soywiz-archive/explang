@@ -291,7 +291,7 @@ export class PsiElement {
     dump(pad:string = '') {
         console.log(pad + this.type + ': ' + this.text);
         for (let child of this.children) {
-            child.dump(pad + '  ');
+            if (child) child.dump(pad + '  ');
         }
     }
 }

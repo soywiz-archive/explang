@@ -11,7 +11,7 @@ import { Resolver, LocalResolver } from './ir';
 class Compiler {
 	private module = new ir.IrModule();
 	private b:ir.NodeBuilder;
-	private clazz:ir.IrClass;
+	private _clazz:ir.IrClass;
 	private _method:ir.IrMethod;
 	public result = new CompileResult();
 
@@ -28,15 +28,19 @@ class Compiler {
 		this.result.errors.add(new ErrorInfo(e, msg));
 	}
 	
-	private ensureClass() {
-		if (this.clazz == null) {
-			this.clazz = this.module.createClass('Main');
+	private _ensureClass() {
+		if (this._clazz == null) {
+			this._clazz = this.module.createClass('Main');
 		}
+	}
+	
+	private get clazz() {
+		this._ensureClass();
+		return this._clazz;
 	}
 
 	private _ensureMethod() {
 		const b = this.b;
-		this.ensureClass();
 		if (this._method == null) {
 			this._method = this.clazz.createMethod('main', ir.Types.Dynamic, ir.IrModifiers.STATIC_PUBLIC);
 			this._method.addParam('argv', ir.Types.array(ir.Types.String));
@@ -58,6 +62,7 @@ class Compiler {
 		if (item instanceof ir.IrParameter) return b.arg(psi, item);
 		if (item instanceof ir.UnknownItem) return b.unknown(psi);
 		if (item instanceof ir.IrMethod) return b.member(psi, item);
+		if (item instanceof ir.IrClass) return b.class(psi, item);
 		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
@@ -135,7 +140,6 @@ class Compiler {
 		} else if (e instanceof syntax.StmsBlock) {
 			return this.stmBlock(e, resolver);
 		} else if (e instanceof syntax.Function) {
-			this.ensureClass();
 			let methodName = e.name._text;
 			let type = e.rettype ? ir.Types.fromString(e.rettype.decl._text, resolver) : ir.Types.holder();
 			let method = this.clazz.createMethod(methodName, type, ir.IrModifiers.STATIC_PUBLIC)
@@ -211,11 +215,30 @@ class Compiler {
 		return this.stm(e.stms, scopeResolver);
 	}
 	
+	typeMembers(clazz:ir.IrClass, e:syntax.MemberDecls, resolver:LocalResolver) {
+		for (let member of e.members) {
+			this.typeMember(clazz, member, resolver);
+		}
+	}
+	
+	typeMember(clazz:ir.IrClass, e:N, resolver:LocalResolver):any {
+		if (e instanceof syntax.MemberDecl) return this.typeMember(clazz, e.it, resolver);
+		if (e instanceof syntax.FieldDecl) {
+			let field = clazz.createField(e.name.text, Types.Unknown, ir.IrModifiers.PUBLIC);
+			field.init = this.expr(e.init, resolver);
+			return;
+		}
+		
+		throw new Error(`Unhandled typeMember ${e}`);
+		return null;
+	}
+	
 	stmClass(e:syntax.ClassType, resolver:LocalResolver):any {
 		var name = e.name.id._text;
 		var oldClass = this.clazz;
-		this.clazz = this.module.createClass(name);
-		var constructorCode = this.stm(e.body, new LocalResolver(null));
+		let clazz = this.module.createClass(name);
+		this.clazz = clazz;
+		this.typeMembers(clazz, e.members, resolver);
 		this.clazz = oldClass;
 		return null;
 	}

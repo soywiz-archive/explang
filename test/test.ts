@@ -152,6 +152,13 @@ describe('test', () => {
 	it('test return error', () => {
 		testProgramWithErrors('function a():Bool => 1; return 1;', `Error: Program had errors [ERROR:18:23:Can't assign Int to Bool]`);
 	});
+
+	it('new instance', () => {
+		testProgramEvalJs(
+			`class Test { a = 10; b = 20; } return Test().b;`,
+			20
+		);
+	});
 	
 	/*
 	it('struct decl', () => {

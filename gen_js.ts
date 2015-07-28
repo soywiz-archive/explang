@@ -1,7 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
 import ir = require('./ir');
-import { IndentWriter, IndentedString, NameAlloc, classNameOf } from './utils';
+import { IndentWriter, IndentedString, NameAlloc, classNameOf, trace } from './utils';
 
 class Generator {
 	private binopRaw(e:ir.BinOpNode) {
@@ -51,18 +51,21 @@ class Generator {
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.allocName}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.left)).with(e.op);
-		if (e instanceof ir.CallExpression) {
-			out = out.with(this.expr(e.left));
-			out = out.with('(');
-			for (var n = 0; n < e.args.length; n++) {
-				if (n != 0) out = out.with(', ');
-				out = out.with(this.expr(e.args[n]));
-			}
-			out = out.with(')');
-			return out;
-		}
+		if (e instanceof ir.CallExpression) return out.with(this.expr(e.left)).with(this._callArgs(e.args));
+		if (e instanceof ir.NewExpression) return out.with('new ').with(e.clazz.fqname).with(this._callArgs(e.args));
 		
 		throw new Error(`Unhandled generate expression ${e}`);
+	}
+	
+	private _callArgs(args:ir.Expression[]) {
+		let out = IndentedString.EMPTY;
+		out = out.with('(');
+		for (var n = 0; n < args.length; n++) {
+			if (n != 0) out = out.with(', ');
+			out = out.with(this.expr(args[n]));
+		}
+		out = out.with(')');
+		return out;
 	}
 	
 	protected stm(s:ir.Statement):IndentedString {
@@ -150,16 +153,7 @@ class Generator {
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
 			for (let local of method.locals) {
-				out = out.with('var ' + local.allocName);
-				let ltype = local.type;
-				if (ltype == ir.Types.Int) {
-					out = out.with(' = 0');
-				} else if (ir.Types.isIterable(ltype)) {
-					out = out.with(' = null');
-				} else {
-					throw new Error(`Unhandled type ${local.type} generating variables`);
-				}
-				out = out.with(';\n');
+				out = out.with('var ' + local.allocName).with(' = ').with(this.getInit(null, local.type)).with(';\n');
 			}
 			out = out.with(this.stm(method.body));
 			return out;
@@ -168,14 +162,32 @@ class Generator {
 		return out;
     }
 	
+	getInit(init:ir.Expression, type:ir.Type) {
+		if (init != null) {
+			return this.expr(init)
+		} else {
+			if (type == ir.Types.Int) {
+				return IndentedString.EMPTY.with('0');
+			} else if (ir.Types.isIterable(type)) {
+				return IndentedString.EMPTY.with('null');
+			} else {
+				throw new Error(`Unhandled type ${type} generating variables`);
+			}
+		}
+	}
+	
 	protected generateClass(clazz:ir.IrClass):IndentedString {
         const name = clazz.name;
 		let out = IndentedString.EMPTY;
 		out = out.with(`var ${name} = (function () {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;
-			out = out.with(`function ${name}(`);
-			out = out.with(`) { }\n`);
+			out = out.with(`function ${name}() {\n`);
+			//trace(clazz.fields.length);
+            for (const field of clazz.fields) {
+                out = out.with(`this.${field.name} = `).with(this.getInit(field.init, field.type)).with(';');
+            }
+			out = out.with(`}\n`);
             for (const method of clazz.methods) {
                 out = out.with(this.generateMethod(method));
             }
