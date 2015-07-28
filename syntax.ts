@@ -83,8 +83,8 @@ class _ClassType extends N { constructor(e:E, public name:IdWithGenerics, public
 @Seq(opt('lazy'), 'var', sure(), list(VarDecl, ',', 1), ';') export class Vars extends N { constructor(e:E, public lazy:N, public vars:VarDecl[]) { super(e); } }
 
 @Seq('=>', sure(), Expr, ';') export class FunctionBody1 extends N { constructor(e:E, public expr:Expr) { super(e); } }
-@Seq('function', sure(), IdWithGenerics, '(', FuncArgs, ')', _any(FunctionBody1, Stm))
-export class Function extends N { constructor(e:E, public name:IdWithGenerics, public args:FuncArgs, public body:FunctionBody1|Stm) { super(e); } }
+@Seq('function', sure(), IdWithGenerics, '(', FuncArgs, ')', opt(TypeTag), _any(FunctionBody1, Stm))
+export class Function extends N { constructor(e:E, public name:IdWithGenerics, public args:FuncArgs, public rettype:TypeTag, public body:FunctionBody1|Stm) { super(e); } }
 
 SetAny(Stm,
 EmptyStm, StmsBlock, StaticIf, If, For, While, Return, ClassType, InterfaceType, ExtensionType,

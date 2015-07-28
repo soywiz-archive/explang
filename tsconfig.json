@@ -6,6 +6,7 @@
         "removeComments": true,
         "experimentalDecorators": true,
         "sourceMap": true,
+        "noEmitOnError": true,
         "outDir": "."
     },
  

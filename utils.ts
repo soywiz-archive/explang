@@ -223,3 +223,7 @@ export class NameAlloc {
 		return null;
 	}
 }
+
+export function trace(...args:any[]) {
+	console.log(args.map(a => `${a}`).join(' '));
+}

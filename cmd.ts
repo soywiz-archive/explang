@@ -20,6 +20,15 @@ if (argv.length == 0) {
 	console.log('explang <file.exp>');
 	process.exit(-1);
 }
-let code = services.compile(vfs.cwd().access(argv[0]));
+let code:string = null;
+try {
+	 code = services.compile(vfs.cwd().access(argv[0]));
+} catch (e) {
+	if (e instanceof Error) {
+		console.log(e.message);
+	} else {
+		console.log(e);
+	}
+}
 //console.log(code);
-console.log(eval(code));
+if (code != null) console.log(eval(code));

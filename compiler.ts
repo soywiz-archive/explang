@@ -3,55 +3,61 @@
 import ir = require('./ir');
 import utils = require('./utils');
 import syntax = require('./syntax');
-import { E, N, ErrorInfo } from './grammar';
-import { classNameOf } from './utils';
+import { Types } from './ir';
+import { E, N, ErrorInfo, ErrorList } from './grammar';
+import { classNameOf, trace } from './utils';
 import { Resolver, LocalResolver } from './ir';
 
 class Compiler {
-	private mod = new ir.IrModule();
+	private module = new ir.IrModule();
 	private b:ir.NodeBuilder;
 	private clazz:ir.IrClass;
-	private method:ir.IrMethod;
+	private _method:ir.IrMethod;
 	public result = new CompileResult();
 
 	constructor() {
-		this.result.module = this.mod;
-		this.b = new ir.NodeBuilder(this.mod);
+		this.result.module = this.module;
+		this.b = new ir.NodeBuilder(this.module);
 	}
 	
 	private error(e:E, msg:string) {
-		this.result.errors.push(new ErrorInfo(e, msg));
+		this.result.errors.add(new ErrorInfo(e, msg));
 	}
 
 	private warning(e:E, msg:string) {
-		this.result.warnings.push(new ErrorInfo(e, msg));
+		this.result.errors.add(new ErrorInfo(e, msg));
 	}
 	
 	private ensureClass() {
 		if (this.clazz == null) {
-			this.clazz = this.mod.createClass('Main');
+			this.clazz = this.module.createClass('Main');
 		}
 	}
 
-	private ensureMethod() {
+	private _ensureMethod() {
 		const b = this.b;
 		this.ensureClass();
-		if (this.method == null) {
-			this.method = this.clazz.createMethod('main', ir.Types.Void, ir.IrModifiers.STATIC_PUBLIC);
-			this.method.addParam('argv', ir.Types.array(ir.Types.String));
+		if (this._method == null) {
+			this._method = this.clazz.createMethod('main', ir.Types.Dynamic, ir.IrModifiers.STATIC_PUBLIC);
+			this._method.addParam('argv', ir.Types.array(ir.Types.String));
 		}
 	}
 	
-	private resolve(id:string, resolver:Resolver):ir.Expression {
+	private get method() {
+		this._ensureMethod();
+		return this._method;
+	}
+	
+	private resolve(psi:E, id:string, resolver:Resolver):ir.Expression {
 		const b = this.b;
 		if (id == 'this') {
-			return b._this(this.clazz.type);
+			return b._this(psi, this.clazz.type);
 		}
 		var item = resolver.get(id);
-		if (item instanceof ir.IrLocal) return b.local(item);
-		if (item instanceof ir.IrParameter) return b.arg(item);
-		if (item instanceof ir.UnknownItem) return b.unknown();
-		if (item instanceof ir.IrMethod) return b.member(item);
+		if (item instanceof ir.IrLocal) return b.local(psi, item);
+		if (item instanceof ir.IrParameter) return b.arg(psi, item);
+		if (item instanceof ir.UnknownItem) return b.unknown(psi);
+		if (item instanceof ir.IrMethod) return b.member(psi, item);
 		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
@@ -60,6 +66,7 @@ class Compiler {
 		if (e == null) return null;
 		if (e instanceof Array) throw new Error('expr Trying to handle an array');
 		if (e._text == '') return null;
+		let psi = e._element;
 		
 		if (e instanceof syntax.Expr) {
 			return this.expr(e.it, resolver);
@@ -68,25 +75,25 @@ class Compiler {
 		} else if (e instanceof syntax.BinaryOpList) {
 			let operators = e.operatorsRaw.map(e => e.op);
 			let expressions = e.expressionsRaw.map(child => this.expr(child, resolver));
-			return b.binops(operators, expressions);
+			return b.binops(psi, operators, expressions);
 		} else if (e instanceof syntax.Expr2) {
 			var out = this.expr(e.left, resolver);
 			for (let _part of e.parts) {
 				let part = _part.item;
 				if (part instanceof syntax.AccessCall) {
-					out = b.call(out, part.exprs.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
+					out = b.call(psi, out, part.exprs.map(arg => this.expr(arg, resolver)), ir.Types.getReturnType(out.type));
 				} else if (part instanceof syntax.AccessField) {
 					let member = ir.Types.access(out.type, part.id.text);
 					if (member == null) {
 						console.warn(`Can't find member ${part.id.text}`);
-						out = b.unknown();
+						out = b.unknown(psi);
 					} else {
-						out = b.access(out, member);
+						out = b.access(psi, out, member);
 					}
 				} else if (part instanceof syntax.AccessArray) {
-					out = b.arrayAccess(out, this.expr(part.expr, resolver));
+					out = b.arrayAccess(psi, out, this.expr(part.expr, resolver));
 				} else if (part._text == '--') {
-					out = b.unopPost(out, '--');
+					out = b.unopPost(psi, out, '--');
 				} else {
 					e._element.root.dump();
 					throw new Error(`Unhandled expr-part ${part._nodeType} : '${part._text}'`);
@@ -94,9 +101,9 @@ class Compiler {
 			}
 			return out;
 		} else if (e instanceof syntax.Id) {
-			return this.resolve(e.text, resolver);
+			return this.resolve(psi, e.text, resolver);
 		} else if (e instanceof syntax.Int) {
-			return b.int(e.value);
+			return b.int(psi, e.value);
 		} else if (e instanceof syntax.Literal) {
 			return this.expr(e.item, resolver);
 		}
@@ -111,39 +118,35 @@ class Compiler {
 		if (e == null) return null;
 		if (e instanceof Array) throw new Error('stm Trying to handle an array');
 		if (e._text == '') return null;
+		let psi = e._element;
 		
 		if (e instanceof syntax.Stm) return this.stmStm(e, resolver);
 		if (e instanceof syntax.If) return this.stmIf(e, resolver);
 		if (e instanceof syntax.While) return this.stmWhile(e, resolver);
 		if (e instanceof syntax.Return) return this.stmReturn(e, resolver);
-		if (e instanceof syntax.ExprStm) return b.exprstm(this.expr(e.expr, resolver));
+		if (e instanceof syntax.ExprStm) return b.exprstm(psi, this.expr(e.expr, resolver));
 		if (e instanceof syntax.Vars) return this.stmVars(e, resolver);
 		if (e instanceof syntax.ClassType) return this.stmClass(e, resolver);
 		if (e instanceof syntax.For) return this.stmFor(e, resolver);
-		if (e instanceof syntax.VarDecl) {
-			let lazy = (e.init.initType._text == '=>');
-			let initExpr = e.init.expr;
-			let initValue = this.expr(initExpr, resolver);
-			let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.holder());
-			resolver.add(local);
-			return b.exprstm(b.assign(b.local(local), initValue));
-		} else if (e instanceof syntax.Stms) {
+		if (e instanceof syntax.VarDecl) return this.stmVarDecl(e, resolver);
+		if (e instanceof syntax.Stms) {
 			let scopeResolver = resolver.child();
-			return b.stms(e.stms.map(c => this.stm(c, scopeResolver)));
+			return b.stms(psi, e.stms.map(c => this.stm(c, scopeResolver)));
 		} else if (e instanceof syntax.StmsBlock) {
 			return this.stmBlock(e, resolver);
 		} else if (e instanceof syntax.Function) {
 			this.ensureClass();
 			let methodName = e.name._text;
-			let method = this.clazz.createMethod(methodName, ir.Types.holder(), ir.IrModifiers.STATIC_PUBLIC)
+			let type = e.rettype ? ir.Types.fromString(e.rettype.decl._text, resolver) : ir.Types.holder();
+			let method = this.clazz.createMethod(methodName, type, ir.IrModifiers.STATIC_PUBLIC)
 			method.bodyNode = e.body;
 			for (let arg of e.args.args) {
 				method.addParam(arg.name.text, ir.Types.Int);
 			}
 			this.completeMethods.push(method);
-			return b.stms([]);
+			return b.stms(psi, []);
 		} else if (e instanceof syntax.FunctionBody1) {
-			return b.ret(this.expr(e.expr, resolver));
+			return b.ret(psi, this.expr(e.expr, resolver));
 		}
 		
 		//console.log(e);
@@ -151,12 +154,28 @@ class Compiler {
 		throw new Error(`Unhandled stm ${e._nodeType} : '${e._text}'`);
 	}
 	
+	stmVarDecl(e:syntax.VarDecl, resolver:LocalResolver) {
+		let b = this.b;
+		let psi = e._element;
+		let lazy = (e.init.initType._text == '=>');
+		let initExpr = e.init.expr;
+		let initValue = this.expr(initExpr, resolver);
+		let local = this.method.createLocal(e.name.text, initExpr ? initValue.type : ir.Types.holder());
+		resolver.add(local);
+		return b.exprstm(psi, b.assign(psi, b.local(psi, local), initValue));
+	}
+
 	stmReturn(e:syntax.Return, resolver:LocalResolver) {
-		return this.b.ret(this.expr(e.expr, resolver));
+		let returnType = this.method.returnType;
+		let expr = this.expr(e.expr, resolver);
+		let psi = e._element;
+		let thisReturnType = expr ? expr.type : ir.Types.Void;
+		return this.b.ret(psi, expr);
 	}
 	
 	stmVars(e:syntax.Vars, resolver:LocalResolver) {
-		return this.b.stms(e.vars.map(v => this.stm(v, resolver)));
+		let psi = e._element;
+		return this.b.stms(psi, e.vars.map(v => this.stm(v, resolver)));
 	}
 	
 	stmStm(e:syntax.Stm, resolver:LocalResolver) {
@@ -164,7 +183,8 @@ class Compiler {
 	}
 	
 	stmIf(e:syntax.If, resolver:LocalResolver) {
-		return this.b._if(this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e._else ? e._else.codeFalse : null, resolver));
+		let psi = e._element;
+		return this.b._if(psi, this.expr(e.expr, resolver), this.stm(e.codeTrue, resolver), this.stm(e._else ? e._else.codeFalse : null, resolver));
 	}
 
 	stmFor(e:syntax.For, resolver:LocalResolver) {
@@ -173,12 +193,14 @@ class Compiler {
 		let iterName = e.id.text;
 		let scopeResolver = resolver.child();
 		let iterVar = this.method.createLocal(iterName, elementType);
+		let psi = e._element;
 		scopeResolver.add(iterVar);
-		return this.b._for(iterVar, iterExpr, this.stm(e.body, scopeResolver));
+		return this.b._for(psi, iterVar, iterExpr, this.stm(e.body, scopeResolver));
 	}
 
 	stmWhile(e:syntax.While, resolver:LocalResolver) {
-		return this.b._while(this.expr(e.expr, resolver), this.stm(e.code, resolver));
+		let psi = e._element;
+		return this.b._while(psi, this.expr(e.expr, resolver), this.stm(e.code, resolver));
 	}
 	
 	stmBlock(e:syntax.StmsBlock, resolver:LocalResolver) {
@@ -192,7 +214,7 @@ class Compiler {
 	stmClass(e:syntax.ClassType, resolver:LocalResolver):any {
 		var name = e.name.id._text;
 		var oldClass = this.clazz;
-		this.clazz = this.mod.createClass(name);
+		this.clazz = this.module.createClass(name);
 		var constructorCode = this.stm(e.body, new LocalResolver(null));
 		this.clazz = oldClass;
 		return null;
@@ -205,14 +227,14 @@ class Compiler {
 		while (this.completeMethods.length > 0) {
 			let method = this.completeMethods.shift();
 			this.method = method;
-			method.body = b.stms([this.stm(method.bodyNode, method.resolver)]);
+			let body = this.stm(method.bodyNode, method.resolver);
+			method.body = b.stms(body.psi, [body]);
 			method.finalize();
 		}
 		this.method = oldMethod;
 	}
 	
 	_compile(node:N) {
-		this.ensureMethod();
 		var s = this.stm(node, this.method.resolver);
 		this.method.body.add(s);
 	}
@@ -224,13 +246,14 @@ class Compiler {
 }
 
 export class CompileResult {
-	public errors:ErrorInfo[] = [];
-	public warnings:ErrorInfo[] = [];
+	public errors = new ErrorList();
 	public module:ir.IrModule;
 }
 
 export function compile(node:N):CompileResult {
 	let compiler = new Compiler();
 	compiler.compile(node);
-	return compiler.result;
+	let result = compiler.result;
+	let analyzeResults = ir.Analyzer.analyzeModule(result.module, result.errors);
+	return result;
 }

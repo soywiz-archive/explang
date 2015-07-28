@@ -25,7 +25,7 @@ export function matchStms(src:string) {
 export function compileProgram(src:string):compiler.CompileResult {
 	let compilerResult = compiler.compile(matchStms(src).node);
 	if (compilerResult.errors.length > 0) {
-		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
+		throw new Error(`Program had errors [${compilerResult.errors.getErrors().join(',')}]`);
 	}
 	return compilerResult;
 }
@@ -34,7 +34,7 @@ export function compile(file:vfs.VfsFile):string {
 	let grammarResult = matchStms(file.readString());
 	var compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
-		throw new Error(`Program had errors [${compilerResult.errors.join(',')}]`);
+		throw new Error(`Program had errors [${compilerResult.errors.getErrors().join(',')}]`);
 	}
 	return '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()';
 }

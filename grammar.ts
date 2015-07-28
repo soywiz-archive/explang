@@ -14,6 +14,7 @@ export class ErrorList {
     private errors: ErrorInfo[] = [];
     add(error:ErrorInfo) { this.errors.push(error); }
     getErrors() { return this.errors.slice(); }
+    get length() { return this.errors.length; }
 }
 
 export class TRange {
@@ -250,7 +251,7 @@ export class PsiElement {
 
     constructor(public file:PsiFile, public range:TRange, public children:PsiElement[] = []) {
         for (let child of children) {
-            child.parent = this;
+            if (child != null) child.parent = this;
         }
     }
     
@@ -536,10 +537,12 @@ export class GOptional extends GBase {
         let result = this.elementInfo.m.match(context);
         let clazz = this.elementInfo.m.clazz;
         this.clazz = clazz;
+        /*
         if (result == null) {
             result = this.build(context, reader.readRange(0), [], [], true); 
-            result._complete = true;
+            //result._complete = true;
         }
+        */
         return result;
     }
 }
@@ -640,14 +643,15 @@ export class GSeq extends GSeqAny {
             }
             let optional = m instanceof GOptional;
             let node = item.m.match(context);
+            let isValidNode = node != null || optional; 
             all.push(node);
             
-            if (node == null && sure) {
+            if (!isValidNode && sure) {
                 context.addError('Expected: ' + m.toShortFirst());
             }
             
-            if (node != null) {
-                elements.push(node._element);
+            if (isValidNode) {
+                elements.push(node ? node._element : null);
                 if (node instanceof AnonymousAny) {
                     node = (<AnonymousAny>node).it;
                 }
@@ -667,7 +671,7 @@ export class GSeq extends GSeqAny {
                     out.push(node);
                 }
             }
-            if (node == null) {
+            if (!isValidNode) {
                 complete = false;
                 break;
             }

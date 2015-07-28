@@ -50,7 +50,7 @@ class Generator {
 		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.allocName}`);
-		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.l)).with(e.op);
+		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.left)).with(e.op);
 		if (e instanceof ir.CallExpression) {
 			out = out.with(this.expr(e.left));
 			out = out.with('(');
@@ -81,9 +81,9 @@ class Generator {
 		}
 		if (s instanceof ir.IfNode) {
 			let out = IndentedString.EMPTY;
-			out = out.with('if (').with(this.expr(s.e)).with(')');
-			out = out.with('{').with(this.stm(s.t)).with('}');
-			out = out.with('else {').with(this.stm(s.f)).with('}');
+			out = out.with('if (').with(this.expr(s.expr)).with(')');
+			out = out.with('{').with(this.stm(s.trueStm)).with('}');
+			out = out.with('else {').with(this.stm(s.falseStm)).with('}');
 			return out;
 		}
 		if (s instanceof ir.FastForNode) {
@@ -122,7 +122,7 @@ class Generator {
 		}
 		if (s instanceof ir.WhileNode) {
 			let out = IndentedString.EMPTY;
-			out = out.with('while (').with(this.expr(s.e)).with(')');
+			out = out.with('while (').with(this.expr(s.expr)).with(')');
 			out = out.with('{').with(this.stm(s.body)).with('}');
 			return out;
 		}

@@ -69,7 +69,7 @@ describe('test', () => {
 		var b = new ir.NodeBuilder(mod);
 		var TestClass = mod.createClass('Test');
 		var demoMethod = TestClass.createMethod('demo', ir.Types.Void, ir.IrModifiers.PUBLIC);
-		demoMethod.body.add(b.ret(b.int(10)));
+		demoMethod.body.add(b.ret(null, b.int(null, 10)));
 		assert.equal(
 			"var Test = (function () { function Test() { } Test.prototype.demo = function() { return 10; }; return Test; })();",
 			gen_js.generate(mod).replace(/\s+/mgi, ' ').trim()
@@ -136,7 +136,7 @@ describe('test', () => {
 	});
 
 	it('run-function', () => {
-		testProgramEvalJs('function dup(a:Int) => a * 2; return dup(7);', 14);
+		testProgramEvalJs('function dup(a:Int):Int => a * 2; return dup(7);', 14);
 	});
 
 	it('run-args', () => {
@@ -147,6 +147,10 @@ describe('test', () => {
 	it('infinite-loop-test', () => {
 		testProgramWithErrors('return 1', 'Error: ERROR:8:8:Expected: ;');
 		testProgramWithErrors('return 1+', 'Error: ERROR:8:12:expected Expr1,ERROR:12:12:Expected: ;');
+	});
+
+	it('test return error', () => {
+		testProgramWithErrors('function a():Bool => 1; return 1;', `Error: Program had errors [ERROR:18:23:Can't assign Int to Bool]`);
 	});
 	
 	/*

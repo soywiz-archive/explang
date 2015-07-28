@@ -1,6 +1,7 @@
 /// <reference path="./defs.d.ts" />
 
-import { Map2, Map3, UserData, NameAlloc, classNameOf } from './utils';
+import { Map2, Map3, UserData, NameAlloc, classNameOf, trace } from './utils';
+import { E, ErrorInfo, ErrorList } from './grammar';
 
 export class IrModule {
 	public classes:IrClass[] = [];
@@ -89,10 +90,14 @@ export class IrMethod extends IrMember {
 	params: IrParameters = new IrParameters(this);
 	bodyNode: any;
 	resolver: LocalResolver;
-	body:Statements = new Statements([]);
+	body:Statements = new Statements(null, []);
 	names = new NameAlloc();
 	
-	public constructor(public name:string, public retval:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
+	get simpleString() { return `${this.containingClass.simpleString}.${this.name}`; }
+	toString() { return `IrMethod(${this.simpleString})`; }
+
+	
+	public constructor(public name:string, public returnType:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
 		super(name, containingClass);
 		this.resolver = new LocalResolver(new MethodResolver(this));
 	}
@@ -100,7 +105,7 @@ export class IrMethod extends IrMember {
 	get type() {
 		//let result = Analyzer.analyze(this.body);
 		//this.retval.canAssign(result.returnType);
-		return Types.func(this.retval, this.params.params.map(p => p.type));
+		return Types.func(this.returnType, this.params.params.map(p => p.type));
 	}
 	
 	get fqname() { return this.containingClass.name + '::' + this.name; }
@@ -116,8 +121,8 @@ export class IrMethod extends IrMember {
 	}
 	
 	finalize() {
-		let result = Analyzer.analyze(this.body);
-		this.retval.canAssign(result.returnType);
+		//let result = Analyzer.analyze(this.body);
+		//this.returnType.canAssign(result.returnType);
 	}
 }
 
@@ -144,6 +149,9 @@ export class IrClass {
 	public members = new Map<string, IrMember>();
 	public type:Type;
 	
+	get simpleString() { return `${this.name}`; }
+	toString() { return `IrClass(${this.simpleString})`; }
+	
 	constructor(public name:string, public module:IrModule) {
 		module.classes.push(this);
 		this.type = new ClassType(this);
@@ -155,8 +163,8 @@ export class IrClass {
 		return this.members.get(name);
 	}
 	
-	createMethod(name:string, retval:Type, modifiers:IrModifiers) {
-		let method = new IrMethod(name, retval, modifiers, this);
+	createMethod(name:string, returnType:Type, modifiers:IrModifiers) {
+		let method = new IrMethod(name, returnType, modifiers, this);
 		this.methods.push(method);
 		this.members.set(name, method);
 		return method;
@@ -243,6 +251,12 @@ export class Types {
 	static array(element:Type):ArrayType { return new ArrayType(element); }
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
 	
+	static canAssign(from:Type, to:Type):boolean {
+		if (from == Types.Dynamic) return true;
+		if (to == Types.Dynamic) return true;
+		return from == to;
+	}
+	
 	static holder():HolderType {
 		return new HolderType();
 	}
@@ -256,6 +270,15 @@ export class Types {
 
 	static isSpecificBaseType(type:Type, base:Type) {
 		return type instanceof SpecificType && type.base == base;
+	}
+	
+	static fromString(name:string, resolver:Resolver):Type {
+		switch (name) {
+			case 'Int': return Types.Int;
+			case 'Bool': return Types.Bool;
+			default: throw new Error(`Unknown type '${name}'`);
+		}
+		return null;
 	}
 	
 	static isIterable(type:Type) { return Types.isSpecificBaseType(type, Types.Iterable); }
@@ -288,6 +311,7 @@ export class Types {
 	}
 }
 export class Node {
+	constructor(public psi:E) { }
 	get nodeKind() {
         return '' + (<any>this.constructor).name;
     }
@@ -297,13 +321,13 @@ export class Node {
 } 
 
 export class Expression extends Node {
-	constructor() { super(); }
+	constructor(psi:E) { super(psi); }
 	get type():Type { throw new Error(`Must override Expression[${classNameOf(this)}].type`); }
 }
 export class Statement extends Node { }
 export class LeftValue extends Expression { }
 export class BinOpNode extends Expression {
-	public constructor(public module:IrModule, public op:string, public l:Expression, public r:Expression) { super(); }
+	public constructor(psi:E, public module:IrModule, public op:string, public l:Expression, public r:Expression) { super(psi); }
 	get type() {
 		let l = this.l, r = this.r;
 		var ret:Type = Types.Unknown;
@@ -327,22 +351,22 @@ export class BinOpNode extends Expression {
 	}
 }
 export class UnopPost extends Expression {
-	constructor(public module:IrModule, public l:Expression, public op:string) { super(); }
-	get type() { return this.l.type; }
+	constructor(psi:E, public module:IrModule, public left:Expression, public op:string) { super(psi); }
+	get type() { return this.left.type; }
 }
 export class ReturnNode extends Statement {
-	public constructor(public optValue?:Expression) {
-		super();
+	public constructor(psi:E, public optValue?:Expression) {
+		super(psi);
 	}
 	get type() { return this.optValue ? this.optValue.type : Types.Void; }
 }
 
 export class Immediate extends Expression {
-	constructor(private _type:Type, public value:any) { super(); }
+	constructor(psi:E, private _type:Type, public value:any) { super(psi); }
 	get type() { return this._type; }
 }
 export class UnknownExpression extends Expression {
-	constructor() { super(); }
+	constructor(psi:E) { super(psi); }
 	get type() { return Types.Unknown; }
 }
 
@@ -399,7 +423,7 @@ export class ParametersResolver extends Resolver {
 		return null;
 	}
 
-	toString() { return 'Parameters(' + this.params.method.name + ')'; }
+	toString() { return `Parameters(${this.params.method.name})`; }
 }
 
 export class MembersResolver extends Resolver {
@@ -409,7 +433,7 @@ export class MembersResolver extends Resolver {
 		return this.clazz.getMember(name);
 	}
 	
-	toString() { return 'Members(' + this.clazz.fqname + ')'; }
+	toString() { return `Members(${this.clazz.fqname})`; }
 }
 
 export class LocalResolver extends Resolver {
@@ -434,7 +458,7 @@ export class LocalResolver extends Resolver {
 		return result;
 	}	
 
-	toString() { return 'Locals(' + this.vars.size + ')(' + this.parent + ')'; }
+	toString() { return `Locals(${this.vars.size})(${this.parent})`; }
 }
 
 export class MethodResolver extends LocalResolver {
@@ -446,12 +470,12 @@ export class MethodResolver extends LocalResolver {
 	}
 	get(name:string) { return this.group.get(name); }
 
-	toString() { return 'Method(' + this.vars.size + ')(' + this.method.fqname + ',' + this.group + ')'; }
+	toString() { return `Method(${this.vars.size})(${this.method.fqname},${this.group})`; }
 }
 
 export class Statements extends Statement {
-	public constructor(public nodes:Node[]) {
-		super();
+	public constructor(psi:E, public nodes:Node[]) {
+		super(psi);
 		this.nodes = this.nodes.slice();
 	}
 	
@@ -469,7 +493,34 @@ export class AnalyzerResult {
 }
 
 export class Visitor {
+	protected currentModule:IrModule = null;
+	protected currentClass:IrClass = null;
+	protected currentMethod:IrMethod = null;
+	
+	module(module:IrModule):void {
+		this.currentModule = module;
+		for (let clazz of module.classes) {
+			this.clazz(clazz);
+		}
+		this.currentModule = null;
+	}
+	
+	clazz(clazz:IrClass) {
+		this.currentClass = clazz;
+		for (let method of clazz.methods) {
+			this.method(method);
+		}
+		this.currentClass = null;
+	}
+	
+	method(method:IrMethod) {
+		this.currentMethod = method;
+		this.node(method.body);
+		this.currentMethod = null;
+	}
+	
 	node(node:Node):void {
+		if (node == null) return;
 		if (node instanceof ReturnNode) {
 			this.nodeReturn(node);
 			return;
@@ -479,9 +530,74 @@ export class Visitor {
 			this.nodeStatements(node);
 			return;
 		}
-		throw new Error(`Can't handle ${node}`);
+		if (node instanceof ExpressionStm) {
+			this.node(node.expression);
+			this.nodeExpressionStm(node);
+			return;
+		}
+		if (node instanceof BinOpNode) {
+			this.node(node.l);
+			this.node(node.r);
+			this.nodeBinop(node);
+			return;
+		}
+		if (node instanceof LocalExpression) {
+			this.localExpr(node);
+			return;
+		}
+		if (node instanceof Immediate) {
+			this.immediate(node);
+			return;
+		}
+		if (node instanceof IfNode) {
+			this.node(node.expr);
+			this.node(node.trueStm);
+			this.node(node.falseStm);
+			this.ifNode(node);
+			return;
+		}
+		if (node instanceof WhileNode) {
+			this.node(node.expr);
+			this.node(node.body);
+			this.whileNode(node);
+			return;
+		}
+		if (node instanceof FastForNode) {
+			this.node(node.body);
+			this.fastForNode(node);
+			return;
+		}
+		if (node instanceof Fast2ForNode) {
+			this.node(node.body);
+			this.node(node.min);
+			this.node(node.max);
+			this.fast2ForNode(node);
+			return;
+		}
+		if (node instanceof ForNode) {
+			this.node(node.body);
+			this.node(node.expr);
+			this.forNode(node);
+			return;
+		}
+		if (node instanceof UnopPost) {
+			this.node(node.left);
+			this.unopPost(node);
+			return;
+		}
+		throw new Error(`Can't handle ${classNameOf(node)} :: ${node}`);
 	}
 	
+	unopPost(node:UnopPost) { }
+	forNode(node:ForNode) { }
+	fastForNode(node:FastForNode) { }
+	fast2ForNode(node:Fast2ForNode) { }
+	whileNode(node:WhileNode) { }
+	ifNode(node:IfNode) { }
+	immediate(node:Immediate) { }
+	localExpr(node:LocalExpression) { }
+	nodeBinop(node:BinOpNode) { }
+	nodeExpressionStm(node:ExpressionStm) { }
 	nodeReturn(node:ReturnNode) { }
 	nodeStatements(node:Statements) { }
 }
@@ -489,31 +605,46 @@ export class Visitor {
 export class Analyzer extends Visitor {
 	result = new AnalyzerResult();
 	
-	static analyze(node:Node):AnalyzerResult {
-		let analyzer = new Analyzer();
+	constructor(public errors:ErrorList) {
+		super();
+		if (this.errors == null) this.errors = new ErrorList();
+	}
+	
+	static analyzeModule(module:IrModule, errors?:ErrorList):AnalyzerResult {
+		let analyzer = new Analyzer(errors);
+		analyzer.module(module);
+		return analyzer.result;
+	}
+	
+	static analyze(node:Node, errors?:ErrorList):AnalyzerResult {
+		let analyzer = new Analyzer(errors);
 		analyzer.node(node);
 		return analyzer.result;
 	}
 	
-	nodeReturn(node:ReturnNode) {
+	nodeReturn(node:ReturnNode) { 
+		//trace(`Analyzing return ${this.currentMethod}`);
+		if (!Types.canAssign(this.currentMethod.returnType, node.type)) {
+			this.errors.add(new ErrorInfo(node.psi, `Can't assign ${node.type} to ${this.currentMethod.returnType}`));
+		}
 		this.result.returns.push(node);
 	}
 }
 
-export class ExpressionStm extends Statement { constructor(public expression:Expression) { super(); } }
-export class IfNode extends Statement { constructor(public e:Expression, public t:Statement, public f:Statement) { super(); } }
-export class ForNode extends Statement { constructor(public local:IrLocal, public expr:Expression, public body:Statement) { super(); } }
-export class FastForNode extends Statement { constructor(public local:IrLocal, public min:number, public max:number, public body:Statement) { super(); } }
-export class Fast2ForNode extends Statement { constructor(public local:IrLocal, public min:Expression, public max:Expression, public body:Statement) { super(); } }
-export class WhileNode extends Statement { constructor(public e:Expression, public body:Statement) { super(); } }
+export class ExpressionStm extends Statement { constructor(psi:E, public expression:Expression) { super(psi); } }
+export class IfNode extends Statement { constructor(psi:E, public expr:Expression, public trueStm:Statement, public falseStm:Statement) { super(psi); } }
+export class ForNode extends Statement { constructor(psi:E, public local:IrLocal, public expr:Expression, public body:Statement) { super(psi); } }
+export class FastForNode extends Statement { constructor(psi:E, public local:IrLocal, public min:number, public max:number, public body:Statement) { super(psi); } }
+export class Fast2ForNode extends Statement { constructor(psi:E, public local:IrLocal, public min:Expression, public max:Expression, public body:Statement) { super(psi); } }
+export class WhileNode extends Statement { constructor(psi:E, public expr:Expression, public body:Statement) { super(psi); } }
 
-export class CallExpression extends Expression { constructor(public left:Expression, public args:Expression[], public retval:Type) { super(); } get type() { return this.retval; } }
-export class LocalExpression extends LeftValue { constructor(public local:IrLocal) { super(); } get type() { return this.local.type; } }
-export class MemberExpression extends LeftValue { constructor(public member:IrMember) { super(); } get type() { return this.member.type; } }
-export class ArgumentExpression extends LeftValue { constructor(public arg:IrParameter) { super(); } get type() { return this.arg.type; } }
-export class ThisExpression extends LeftValue { constructor(public clazz:Type) { super(); } get type() { return this.clazz; } }
-export class MemberAccess extends LeftValue { constructor(public left:Expression, public member:IrMember) { super(); } get type() { return this.member.type; } }
-export class ArrayAccess extends LeftValue { constructor(public left:Expression, public index:Expression) { super(); } get type() { return Types.getElement(this.left.type); } }
+export class CallExpression extends Expression { constructor(psi:E, public left:Expression, public args:Expression[], public retval:Type) { super(psi); } get type() { return this.retval; } }
+export class LocalExpression extends LeftValue { constructor(psi:E, public local:IrLocal) { super(psi); } get type() { return this.local.type; } }
+export class MemberExpression extends LeftValue { constructor(psi:E, public member:IrMember) { super(psi); } get type() { return this.member.type; } }
+export class ArgumentExpression extends LeftValue { constructor(psi:E, public arg:IrParameter) { super(psi); } get type() { return this.arg.type; } }
+export class ThisExpression extends LeftValue { constructor(psi:E, public clazz:Type) { super(psi); } get type() { return this.clazz; } }
+export class MemberAccess extends LeftValue { constructor(psi:E, public left:Expression, public member:IrMember) { super(psi); } get type() { return this.member.type; } }
+export class ArrayAccess extends LeftValue { constructor(psi:E, public left:Expression, public index:Expression) { super(psi); } get type() { return Types.getElement(this.left.type); } }
 
 var oops = [
     ["**"],
@@ -538,30 +669,30 @@ for (var priority = 0; priority < oops.length; priority++) {
 export class NodeBuilder {
 	constructor(public module:IrModule) {
 	}
-	stms(list:Statement[]) { return new Statements(list); }
-	ret(expr?:Expression) { return new ReturnNode(expr); }
-	exprstm(expr?:Expression) { return new ExpressionStm(expr); }
-	int(value:number) { return new Immediate(Types.Int, value | 0); }
-	unknown() { return new UnknownExpression(); }
-	call(left:Expression, args:Expression[], retval:Type) { return new CallExpression(left, args, retval); }
-	access(left:Expression, member:IrMember) { return new MemberAccess(left, member); }
-	arrayAccess(left:Expression, index:Expression) { return new ArrayAccess(left, index); }
-	_if(e:Expression, t:Statement, f:Statement) { return new IfNode(e, t, f); }
-	_for(local:IrLocal, e:Expression, body:Statement):Statement {
+	stms(psi:E, list:Statement[]) { return new Statements(psi, list); }
+	ret(psi:E, expr?:Expression) { return new ReturnNode(psi, expr); }
+	exprstm(psi:E, expr?:Expression) { return new ExpressionStm(psi, expr); }
+	int(psi:E, value:number) { return new Immediate(psi, Types.Int, value | 0); }
+	unknown(psi:E) { return new UnknownExpression(psi); }
+	call(psi:E, left:Expression, args:Expression[], retval:Type) { return new CallExpression(psi, left, args, retval); }
+	access(psi:E, left:Expression, member:IrMember) { return new MemberAccess(psi, left, member); }
+	arrayAccess(psi:E, left:Expression, index:Expression) { return new ArrayAccess(psi, left, index); }
+	_if(psi:E, e:Expression, t:Statement, f:Statement) { return new IfNode(psi, e, t, f); }
+	_for(psi:E, local:IrLocal, e:Expression, body:Statement):Statement {
 		if (e instanceof BinOpNode) {
 			if (e.op == '...') {
 				let l = e.l, r = e.r;
 				if (l instanceof Immediate && r instanceof Immediate && l.type == Types.Int && r.type == Types.Int) {
-					return new FastForNode(local, l.value, r.value, body);
+					return new FastForNode(psi, local, l.value, r.value, body);
 				}
-				return new Fast2ForNode(local, l, r, body);
+				return new Fast2ForNode(psi, local, l, r, body);
 			}
 		}
-		return new ForNode(local, e, body);
+		return new ForNode(psi, local, e, body);
 	}
-	_while(e:Expression, code:Statement) { return new WhileNode(e, code); }
-	unopPost(expr:Expression, op:string) { return new UnopPost(this.module, expr, op); }
-	binops(operators:string[], exprs:Expression[]) {
+	_while(psi:E, e:Expression, code:Statement) { return new WhileNode(psi, e, code); }
+	unopPost(psi:E, expr:Expression, op:string) { return new UnopPost(psi, this.module, expr, op); }
+	binops(psi:E, operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
         var prev = exprs.shift();
         var prevPriority:number = 0;
@@ -571,20 +702,20 @@ export class NodeBuilder {
 			if (nextPriority === undefined) throw new Error(`Can't find operator ${op}`);
             if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
                 var pbop = <BinOpNode>prev;
-                prev = new BinOpNode(this.module, pbop.op, pbop.l, new BinOpNode(this.module, op, pbop.r, next))
+                prev = new BinOpNode(psi, this.module, pbop.op, pbop.l, new BinOpNode(psi, this.module, op, pbop.r, next))
             } else {
-                prev = new BinOpNode(this.module, op, prev, next);
+                prev = new BinOpNode(psi, this.module, op, prev, next);
             }
             prevPriority = nextPriority;
         }
 
         return prev;
 	}
-	_this(clazz:Type) { return new ThisExpression(clazz); }
-	local(local:IrLocal) { return new LocalExpression(local); }
-	member(member:IrMethod) { return new MemberExpression(member); }
-	arg(arg:IrParameter) { return new ArgumentExpression(arg); }
-	assign(left:Expression, right:Expression) {
-		return new BinOpNode(this.module, '=', left, right);
+	_this(psi:E, clazz:Type) { return new ThisExpression(psi, clazz); }
+	local(psi:E, local:IrLocal) { return new LocalExpression(psi, local); }
+	member(psi:E, member:IrMethod) { return new MemberExpression(psi, member); }
+	arg(psi:E, arg:IrParameter) { return new ArgumentExpression(psi, arg); }
+	assign(psi:E, left:Expression, right:Expression) {
+		return new BinOpNode(psi, this.module, '=', left, right);
 	}
 }

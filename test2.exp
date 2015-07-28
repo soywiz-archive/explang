@@ -1,1 +1,3 @@
-return 1+;
+var a = 1+1;
+function dup(a:Int):Int => a * 2;
+return dup(3);
