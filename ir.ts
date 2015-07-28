@@ -237,7 +237,7 @@ export class Types {
 	private static Array = new PrimitiveType('Array');
 	private static Iterable = new PrimitiveType('Iterable');
 	private static Iterator = new PrimitiveType('Iterator');
-	private static Unknown = new PrimitiveType('Unknown');
+	public static Unknown = new PrimitiveType('Unknown');
 	public static Invalid = new PrimitiveType('Invalid');
 	
 	static array(element:Type):ArrayType { return new ArrayType(element); }
