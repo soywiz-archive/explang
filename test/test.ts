@@ -159,6 +159,13 @@ describe('test', () => {
 			20
 		);
 	});
+
+	it('integer conformance', () => {
+		testProgramEvalJs(
+			`var result:Int = 0; for (n in 0 ... 20000) result += n * 1000; return result;`,
+			-1873462912
+		);
+	});
 	
 	/*
 	it('struct decl', () => {

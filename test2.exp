@@ -1,8 +1,10 @@
 class Test {
-	demo = 10;
-	a = 20;
+	demo:Int = 10;
+	a:Int = 20;
 }
 
 var a = Test();
-a.demo = 30;
+for (n in 0 ... 100) {
+	a.demo += n;
+}
 return a.demo;

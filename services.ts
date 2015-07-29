@@ -30,11 +30,13 @@ export function compileProgram(src:string):compiler.CompileResult {
 	return compilerResult;
 }
 
-export function compile(file:vfs.VfsFile):string {
+export function compile(file:vfs.VfsFile, compact:boolean = false):string {
 	let grammarResult = matchStms(file.readString());
 	var compilerResult = compiler.compile(grammarResult.node);
 	if (compilerResult.errors.length > 0) {
 		throw new Error(`Program had errors [${compilerResult.errors.getErrors().join(',')}]`);
 	}
-	return '(function() { ' + gen_js.generateRuntime() + gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim() + ' return Main.main(); })()';
+	let code = gen_js.generate(compilerResult.module);
+	if (compact) code = code.replace(/\s+/mgi, ' ').trim();
+	return '(function() { ' + gen_js.generateRuntime() + code + ' return Main.main(); })()';
 }

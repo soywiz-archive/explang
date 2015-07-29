@@ -139,7 +139,7 @@ function irTypeToType(irtype:ir.Type) {
 
 function genbody(body:MethodBody, node:ir.Node) {
 	if (node == null) throw 'Node must not be null';
-	if (node instanceof ir.BinOpNode) {
+	if (node instanceof ir.BinOpExpression) {
 		genbody(body, node.left);
 		genbody(body, node.right);
 		body.binop(node.op);

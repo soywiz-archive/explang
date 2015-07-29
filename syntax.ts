@@ -20,11 +20,13 @@ export class Stm extends N { constructor(e:E, public it:any) { super(e); } }
 @Seq('<', list(Id, ',', 1)) export class Generics extends N { constructor(e:E, public ids:Id[], private commas:N[]) { super(e); } }
 @Seq(Id, opt(Generics)) export class IdWithGenerics extends N { constructor(e:E, public id:Id, public generics:Generics) { super(e); } }
 
+export var ASSIGN_OPS = ["+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=", "="]; 
+
 @Any(
     '<=>', '===', '!==', '...', 
     '&&', '||', '==', '!=', '..', '<=', '>=', '**', 'is', 'as',
-    "+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=",
-    "=", '+', '-', '/', '*', '%', '&', '|', '^', '<', '>'
+    "+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^=", "=",
+    '+', '-', '/', '*', '%', '&', '|', '^', '<', '>'
 ) export class Binop extends N { constructor(e:E) { super(e); } get op() { return this._text; } }
 
 @Seq(Id) export class TypeDecl extends N { constructor(e:E, id:Id) { super(e); } }

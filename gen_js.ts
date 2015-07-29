@@ -4,7 +4,7 @@ import ir = require('./ir');
 import { IndentWriter, IndentedString, NameAlloc, classNameOf, trace } from './utils';
 
 class Generator {
-	private binopRaw(e:ir.BinOpNode) {
+	private binopRaw(e:ir.BinOpExpression) {
 		let func:string = null;
 		let out = IndentedString.EMPTY;
         switch (e.op) {
@@ -35,7 +35,7 @@ class Generator {
 		if (e == null) return IndentedString.EMPTY;
 		var out = IndentedString.EMPTY;
 		
-		if (e instanceof ir.BinOpNode) {
+		if (e instanceof ir.BinOpExpression) {
             let type = e.type;
 			if (type == ir.Types.Int) return out.with('((').with(this.binopRaw(e)).with(')|0)');
 			if (type == ir.Types.Bool) return out.with('!!(').with(this.binopRaw(e)).with(')');
@@ -43,6 +43,9 @@ class Generator {
 			if (type instanceof ir.ClassType) return this.binopRaw(e);
             throw new Error(`gen_js.BinOpNode.Unhandled type ${type} ${e.op}`);
         }
+		if (e instanceof ir.AssignExpression) {
+			return out.with(this.expr(e.lvalue)).with(' = ').with(this.expr(e.expr));
+		}
 		if (e instanceof ir.ThisExpression) return IndentedString.EMPTY.with('this');
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
 		if (e instanceof ir.ArrayAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('[').with(this.expr(e.index)).with(']');
@@ -55,7 +58,7 @@ class Generator {
 		if (e instanceof ir.CallExpression) return out.with(this.expr(e.left)).with(this._callArgs(e.args));
 		if (e instanceof ir.NewExpression) return out.with('new ').with(e.clazz.fqname).with(this._callArgs(e.args));
 		
-		throw new Error(`Unhandled generate expression ${e}`);
+		throw new Error(`gen_js:Unhandled generate expression ${e}`);
 	}
 	
 	private _callArgs(args:ir.Expression[]) {

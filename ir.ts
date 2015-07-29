@@ -2,6 +2,7 @@
 
 import { Map2, Map3, UserData, NameAlloc, classNameOf, trace } from './utils';
 import { E, ErrorInfo, ErrorList } from './grammar';
+import syntax = require('./syntax');
 
 export class IrModule {
 	public classes:IrClass[] = [];
@@ -287,11 +288,13 @@ export class Types {
 		return type instanceof SpecificType && type.base == base;
 	}
 	
-	static fromString(name:string, resolver:Resolver):Type {
+	static fromString(name:string, resolver:Resolver, nullOnInvalid:boolean = false):Type {
 		switch (name) {
 			case 'Int': return Types.Int;
 			case 'Bool': return Types.Bool;
-			default: throw new Error(`Unknown type '${name}'`);
+			default:
+				if (nullOnInvalid) return null;
+				throw new Error(`Unknown type '${name}'`);
 		}
 		return null;
 	}
@@ -341,7 +344,7 @@ export class Expression extends Node {
 }
 export class Statement extends Node { }
 export class LeftValue extends Expression { }
-export class BinOpNode extends Expression {
+export class BinOpExpression extends Expression {
 	public constructor(psi:E, public module:IrModule, public op:string, public left:Expression, public right:Expression) { super(psi); }
 	get type() {
 		let l = this.left, r = this.right;
@@ -557,7 +560,7 @@ export class Visitor {
 			return;
 		}
 		if (node instanceof ExpressionStm) { this.node(node.expression); this.nodeExpressionStm(node); return; }
-		if (node instanceof BinOpNode) { this.node(node.left); this.node(node.right); this.nodeBinop(node); return; }
+		if (node instanceof BinOpExpression) { this.node(node.left); this.node(node.right); this.nodeBinop(node); return; }
 		if (node instanceof LocalExpression) { this.localExpr(node); return; }
 		if (node instanceof Immediate) { this.immediate(node); return; }
 		if (node instanceof IfNode) { this.node(node.expr); this.node(node.trueStm); this.node(node.falseStm); this.ifNode(node); return; }
@@ -567,10 +570,16 @@ export class Visitor {
 		if (node instanceof ForNode) { this.node(node.body); this.node(node.expr); this.forNode(node); return; }
 		if (node instanceof UnopPost) { this.node(node.left); this.unopPost(node); return; }
 		if (node instanceof MemberAccess) { this.node(node.left); this.memberAccess(node); return; }
+		if (node instanceof MemberExpression) { this.memberExpression(node); return; }
+		if (node instanceof AssignExpression) { this.node(node.lvalue); this.node(node.expr); this.assignExpression(node); return; }
 		if (node instanceof NewExpression) { for (let arg of node.args) this.node(arg); this.newExpression(node); return; }
+		if (node instanceof CallExpression) { for (let arg of node.args) this.node(arg); this.node(node.left); this.callExpression(node); return; }
 		throw new Error(`Can't handle ir.node ${classNameOf(node)} :: ${node}`);
 	}
 	
+	assignExpression(node:AssignExpression) { }
+	memberExpression(node:MemberExpression) { }
+	callExpression(node:CallExpression) { }
 	newExpression(node:NewExpression) { }
 	memberAccess(node:MemberAccess) { }
 	unopPost(node:UnopPost) { }
@@ -581,7 +590,7 @@ export class Visitor {
 	ifNode(node:IfNode) { }
 	immediate(node:Immediate) { }
 	localExpr(node:LocalExpression) { }
-	nodeBinop(node:BinOpNode) { }
+	nodeBinop(node:BinOpExpression) { }
 	nodeExpressionStm(node:ExpressionStm) { }
 	nodeReturn(node:ReturnNode) { }
 	nodeStatements(node:Statements) { }
@@ -625,6 +634,7 @@ export class WhileNode extends Statement { constructor(psi:E, public expr:Expres
 
 export class CallExpression extends Expression { constructor(psi:E, public left:Expression, public args:Expression[], public retval:Type) { super(psi); } get type() { return this.retval; } }
 export class NewExpression extends Expression { constructor(psi:E, public clazz:IrClass, public args:Expression[]) { super(psi); } get type() { return Types.classType(this.clazz); } }
+export class AssignExpression extends Expression { constructor(psi:E, public lvalue:LeftValue, public expr:Expression) { super(psi); } get type() { return this.lvalue.type; } }
 export class LocalExpression extends LeftValue { constructor(psi:E, public local:IrLocal) { super(psi); } get type() { return this.local.type; } }
 export class MemberExpression extends LeftValue { constructor(psi:E, public member:IrMember) { super(psi); } get type() { return this.member.type; } }
 export class ClassExpression extends LeftValue { constructor(psi:E, public clazz:IrClass) { super(psi); } get type() { return Types.classType(this.clazz); } }
@@ -644,13 +654,32 @@ var oops = [
     ["..."],
     ["&&"],
     ["||"],
-    ["=","+=","-=","*=","/=","%=","<<=",">>=",">>>=","|=","&=","^="],
+	syntax.ASSIGN_OPS
 ];
 var priorityOps:{ [op:string]:number; } = {};
 
 for (var priority = 0; priority < oops.length; priority++) {
     let oop = oops[priority];
     for (let op of oop) priorityOps[op] = priority + 1;
+}
+
+function adjustBinops(n:Expression):Expression {
+	if (n instanceof BinOpExpression) {
+		if (syntax.ASSIGN_OPS.indexOf(n.op) >= 0) {
+			let left = adjustBinops(n.left);
+			let right = adjustBinops(n.right);
+			let psi = n.psi;
+			if (n.op == '=') {
+				return new AssignExpression(n.psi, left, right);
+			} else {
+				return new AssignExpression(
+					n.psi, left,
+					adjustBinops(new BinOpExpression(psi, n.module, n.op.slice(0, n.op.length - 1), left, right))
+				);
+			} 
+		}
+	}
+	return n;
 }
 
 export class NodeBuilder {
@@ -671,7 +700,7 @@ export class NodeBuilder {
 	arrayAccess(psi:E, left:Expression, index:Expression) { return new ArrayAccess(psi, left, index); }
 	_if(psi:E, e:Expression, t:Statement, f:Statement) { return new IfNode(psi, e, t, f); }
 	_for(psi:E, local:IrLocal, e:Expression, body:Statement):Statement {
-		if (e instanceof BinOpNode) {
+		if (e instanceof BinOpExpression) {
 			if (e.op == '...') {
 				let l = e.left, r = e.right;
 				if (l instanceof Immediate && r instanceof Immediate && l.type == Types.Int && r.type == Types.Int) {
@@ -686,22 +715,22 @@ export class NodeBuilder {
 	unopPost(psi:E, expr:Expression, op:string) { return new UnopPost(psi, this.module, expr, op); }
 	binops(psi:E, operators:string[], exprs:Expression[]) {
 		if (exprs.length == 1) return exprs[0];
-        var prev = exprs.shift();
+        var prev:Expression = exprs.shift();
         var prevPriority:number = 0;
         for (let op of operators) {
             let next = exprs.shift();
             let nextPriority = priorityOps[op];
 			if (nextPriority === undefined) throw new Error(`Can't find operator ${op}`);
-            if ((prev instanceof BinOpNode) && nextPriority < prevPriority) {
-                var pbop = <BinOpNode>prev;
-                prev = new BinOpNode(psi, this.module, pbop.op, pbop.left, new BinOpNode(psi, this.module, op, pbop.right, next))
+            if ((prev instanceof BinOpExpression) && nextPriority < prevPriority) {
+                var pbop = <BinOpExpression>prev;
+                prev = new BinOpExpression(psi, this.module, pbop.op, pbop.left, new BinOpExpression(psi, this.module, op, pbop.right, next))
             } else {
-                prev = new BinOpNode(psi, this.module, op, prev, next);
+                prev = new BinOpExpression(psi, this.module, op, prev, next);
             }
             prevPriority = nextPriority;
         }
 
-        return prev;
+        return adjustBinops(prev);
 	}
 	_this(psi:E, clazz:Type) { return new ThisExpression(psi, clazz); }
 	local(psi:E, local:IrLocal) { return new LocalExpression(psi, local); }
@@ -709,6 +738,6 @@ export class NodeBuilder {
 	class(psi:E, clazz:IrClass) { return new ClassExpression(psi, clazz); }
 	arg(psi:E, arg:IrParameter) { return new ArgumentExpression(psi, arg); }
 	assign(psi:E, left:Expression, right:Expression) {
-		return new BinOpNode(psi, this.module, '=', left, right);
+		return new BinOpExpression(psi, this.module, '=', left, right);
 	}
 }

@@ -221,10 +221,18 @@ class Compiler {
 		}
 	}
 	
+	getType(typetag:syntax.TypeTag, resolver:LocalResolver):ir.Type {
+		if (typetag == null) return Types.Unknown;
+		let type = Types.fromString(typetag.decl._text, resolver, true);
+		if (type != null) return type;
+		let clazz = resolver.get(typetag.decl._text);
+		return Types.classType(<ir.IrClass>clazz);
+	}
+	
 	typeMember(clazz:ir.IrClass, e:N, resolver:LocalResolver):any {
 		if (e instanceof syntax.MemberDecl) return this.typeMember(clazz, e.it, resolver);
 		if (e instanceof syntax.FieldDecl) {
-			let field = clazz.createField(e.name.text, Types.Unknown, ir.IrModifiers.PUBLIC);
+			let field = clazz.createField(e.name.text, this.getType(e.optTypeTag, resolver), ir.IrModifiers.PUBLIC);
 			field.init = this.expr(e.init, resolver);
 			return;
 		}
