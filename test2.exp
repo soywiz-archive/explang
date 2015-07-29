@@ -4,7 +4,7 @@ class Test {
 }
 
 var a = Test();
-for (n in 0 ... 100) {
+for (n in 0 ... 1000) {
 	a.demo += n;
 }
 return a.demo;

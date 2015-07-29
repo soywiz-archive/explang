@@ -167,6 +167,13 @@ describe('test', () => {
 		);
 	});
 	
+	it('misc tests', () => {
+		testProgramEvalJs(
+			`class Test { demo:Int = 10; } var a = Test(); for (n in 0 ... 1000) { a.demo += n; } return a.demo;`,
+			499510
+		);
+	});
+	
 	/*
 	it('struct decl', () => {
 		testProgramEvalJs('struct Point(x:Float, y:Float) { }', 1, ['a', 'b']);

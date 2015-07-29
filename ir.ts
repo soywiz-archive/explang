@@ -56,7 +56,7 @@ export class IrMember {
 	}
 	
 	get type():Type {
-		return Types.Invalid;
+		return Types.invalid('IrMember.type');
 	}
 	
 	get module() { return this.containingClass.module; }
@@ -130,9 +130,11 @@ export class IrMethod extends IrMember {
 export class IrField extends IrMember {
 	public init:Expression = null;
 	
-	public constructor(public name:string, public type:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
+	public constructor(public name:string, private _type:Type, public modifiers:IrModifiers, public containingClass:IrClass) {
 		super(name, containingClass);
 	}
+	
+	get type() { return this._type; }
 }
 
 export class IrScope {
@@ -258,10 +260,14 @@ export class Types {
 	private static Iterable = new PrimitiveType('Iterable');
 	private static Iterator = new PrimitiveType('Iterator');
 	public static Unknown = new PrimitiveType('Unknown');
-	public static Invalid = new PrimitiveType('Invalid');
+	private static Invalid = new PrimitiveType('Invalid');
 	
 	static array(element:Type):ArrayType { return new ArrayType(element); }
 	static func(retval:Type, args:Type[]):FunctionType { return new FunctionType(retval, args); }
+	
+	static invalid(reason:string) {
+		return new PrimitiveType(`Invalid:${reason}`);
+	}
 	
 	static canAssign(from:Type, to:Type):boolean {
 		if (from == Types.Dynamic) return true;
