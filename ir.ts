@@ -75,9 +75,13 @@ export class IrParameter implements ResolverItem {
 }
 
 export class IrParameters {
-	public params:IrParameter[] = [];
+	private params:IrParameter[] = [];
 	
 	constructor(public method:IrMethod) { }
+	
+	getParams() {
+		return this.params.slice();
+	}
 	
 	addParam(name:string, type:Type, init?:Expression) {
 		let param = new IrParameter(this, this.params.length, name, type, init);
@@ -106,7 +110,7 @@ export class IrMethod extends IrMember {
 	get type() {
 		//let result = Analyzer.analyze(this.body);
 		//this.retval.canAssign(result.returnType);
-		return Types.func(this.returnType, this.params.params.map(p => p.type));
+		return Types.func(this.returnType, this.params.getParams().map(p => p.type));
 	}
 	
 	get fqname() { return this.containingClass.name + '::' + this.name; }
@@ -297,7 +301,10 @@ export class Types {
 	static fromString(name:string, resolver:Resolver, nullOnInvalid:boolean = false):Type {
 		switch (name) {
 			case 'Int': return Types.Int;
+			case 'Long': return Types.Long;
 			case 'Bool': return Types.Bool;
+			case 'String': return Types.String;
+			case 'Dynamic': return Types.Dynamic;
 			default:
 				if (nullOnInvalid) return null;
 				throw new Error(`Unknown type '${name}'`);
@@ -427,11 +434,13 @@ export class IrIntrinsic {
 }
 
 export var INTRINSIC_JS_RAW = new IrIntrinsic(Types.Dynamic, '__js__');
+export var INTRINSIC_JAVACALL_RAW = new IrIntrinsic(Types.Dynamic, '__javacall__');
 
 class IntrinsicsResolver extends Resolver {
 	get(name:string):ResolverItem {
 		switch (name) {
 			case '__js__': return INTRINSIC_JS_RAW;
+			case '__javacall__': return INTRINSIC_JS_RAW;
 		}
 		return null;
 	}
@@ -470,7 +479,7 @@ export class ParametersResolver extends Resolver {
 	constructor(public params:IrParameters) { super(); }
 	
 	get(name:string) {
-		for (let param of this.params.params.reverse()) {
+		for (let param of this.params.getParams().slice().reverse()) {
 			if (param.name == name) return param;
 		}
 		return null;

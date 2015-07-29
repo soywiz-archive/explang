@@ -175,17 +175,13 @@ class Generator {
 		let name = method.name;
         let className = method.containingClass.name;
 		let out = IndentedString.EMPTY;
-		let params = method.params.params;
+		let params = method.params.getParams();
 		if (method.modifiers & ir.IrModifiers.STATIC) {
 			out = out.with(`${className}.${name} = function(`);
 		} else {
 			out = out.with(`${className}.prototype.${name} = function(`);
 		}
-		for (let n = 0; n < params.length; n++) {
-			let param = params[n];
-			if (n != 0) out = out.with(', ');
-			out = out.with(param.name);
-		}
+		out = out.with(params.map(p => p.name).join(', '));
 		out = out.with(`) {\n`);
 		out = out.indent(() => {
 			let out = IndentedString.EMPTY;

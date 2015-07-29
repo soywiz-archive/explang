@@ -174,6 +174,10 @@ describe('test', () => {
 	it('js raw', () => {
 		testProgramEvalJs(`function isqrt(v:Int):Int { return __js__("Math.sqrt(v)|0"); } return isqrt(10);`, 3);
 	});
+
+	it('parameter order', () => {
+		testProgramEvalJs(`function sub(a:Int, b:Int):Int => a - b; return sub(7, 3);`, 4);
+	});
 	
 	it('misc tests', () => {
 		testProgramEvalJs(

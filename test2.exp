@@ -1,8 +1,24 @@
-function isqrt(v:Int):Int {
+function trace(v:Dynamic) {
+	static if (js) return __js__("console.log(''+v);");
+	else static fail("platform not supported!");
+}
+
+function file_write(name:String, text:String) {
+	static if (js) return __js__("require('fs').writeFileSync(name, text);");
+	else static fail("platform not supported!");
+}
+
+function int_sqrt(v:Int):Int {
 	static if (js) {
 		return __js__("Math.sqrt(v)|0");
+	} else static if (java) {
+		return __javacall__("double java.lang.Math.sqrt(double)", v);
 	} else {
 		static fail("platform not supported!");
 	}
 }
-return isqrt(10);
+
+trace(int_sqrt(10));
+file_write("hello.txt", "hello world!");
+
+return int_sqrt(10);

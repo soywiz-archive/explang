@@ -150,7 +150,8 @@ class Compiler {
 			let method = this.clazz.createMethod(methodName, type, ir.IrModifiers.STATIC_PUBLIC)
 			method.bodyNode = e.body;
 			for (let arg of e.args.args) {
-				method.addParam(arg.name.text, ir.Types.Int);
+				let type = this.getType(arg.typetag, resolver);
+				method.addParam(arg.name.text, type);
 			}
 			this.completeMethods.push(method);
 			return b.stms(psi, []);
