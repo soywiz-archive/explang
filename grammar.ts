@@ -237,7 +237,8 @@ export class Language {
 
 export class PsiFile {
     constructor(public reader:Reader) {
-    }    
+    }
+    toString() { return this.reader.file; }
 }
 
 export class Key<T> { constructor(public name:string) { } }

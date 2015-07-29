@@ -21,6 +21,7 @@ function testProgramWithErrors(src:string, expectedError:string) {
 	try {
 		const compilerResult = services.compileProgram(src);
 		const generated = gen_js.generate(compilerResult.module).replace(/\s+/mgi, ' ').trim();
+		assert.equal('', 'expected to fail!');
 	} catch (e) {
 		assert.equal(`${e}`, expectedError);
 	}
@@ -151,6 +152,9 @@ describe('test', () => {
 
 	it('test return error', () => {
 		testProgramWithErrors('function a():Bool => 1; return 1;', `Error: Program had errors [ERROR:18:23:Can't assign Int to Bool]`);
+		testProgramWithErrors('static fail("failed1");', `Error: Failed at file:0:23 : failed1`);
+		testProgramWithErrors('static if (js) static fail("failed1");', `Error: Failed at file:15:38 : failed1`);
+		testProgramEvalJs('static if (js2) static fail("failed1"); return 10;', 10);
 	});
 
 	it('new instance', () => {
@@ -165,6 +169,10 @@ describe('test', () => {
 			`var result:Int = 0; for (n in 0 ... 20000) result += n * 1000; return result;`,
 			-1873462912
 		);
+	});
+
+	it('js raw', () => {
+		testProgramEvalJs(`function isqrt(v:Int):Int { return __js__("Math.sqrt(v)|0"); } return isqrt(10);`, 3);
 	});
 	
 	it('misc tests', () => {

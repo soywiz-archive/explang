@@ -13,8 +13,16 @@ export class Stm extends N { constructor(e:E, public it:any) { super(e); } }
 @EReg(/^(\d+\.\d+|\d*\.\d+|\d+\.[^\.])/) export class Float extends N { }
 @EReg(/^\d[\d_]*/) export class Int extends N { get value():number { return parseInt2(this._element.text); } }
 @Any('true', 'false') export class Bool extends N { }
-@EReg(/^[a-z]\w*/i) export class Id extends N { get text() { return this._element.text; } }
-@Any(Bool, Float, Int, Id) export class Literal extends N { constructor(e:E, public item:Bool|Float|Int|Id) { super(e); }}
+@EReg(/^[a-z_$]\w*/i) export class Id extends N { get text() { return this._element.text; } }
+@EReg(/^"([^"])*"/i) export class String1 extends N {
+    get rawText() { return this._element.text; }
+    get escapedText() {
+        // @HACK!
+        return JSON.parse(this.rawText);
+    }
+}
+
+@Any(Bool, Float, Int, Id, String1) export class Literal extends N { constructor(e:E, public item:Bool|Float|Int|Id) { super(e); }}
 @Any('++', '--', '+', '-', '!', '~') export class Unop extends N { constructor(e:E, public op:string) { super(e);} }
 
 @Seq('<', list(Id, ',', 1)) export class Generics extends N { constructor(e:E, public ids:Id[], private commas:N[]) { super(e); } }
@@ -64,9 +72,9 @@ SetAny(Expr, FuncLit2, FuncLit1, AwaitExpr, YieldExpr, BinaryOpList);
 @Seq('{', Stms, '}') export class StmsBlock extends N { constructor(e:E, public stms:Stms) { super(e); } }
 
 @Seq('else', sure(), Stm) export class Else extends N { constructor(e:E, public codeFalse:Stm) { super(e); } }
-class _If extends N { constructor(e:E, public expr:Expr, public codeTrue:Stm, public _else:Else) { super(e); } }
-@Seq('static', 'if', sure(), '(', Expr, ')', Stm, opt(Else)) export class StaticIf extends _If { }
-@Seq('if', sure(), '(', Expr, ')', Stm, opt(Else)) export class If extends _If { }
+@Seq('static', 'if', sure(), '(', Id, ')', Stm, opt(Else)) export class StaticIf extends N { constructor(e:E, public id:Id, public codeTrue:Stm, public _else:Else) { super(e); } }
+@Seq('static', 'fail', sure(), '(', String1, ')', ';') export class StaticFail extends N { constructor(e:E, public str:String1) { super(e); } }
+@Seq('if', sure(), '(', Expr, ')', Stm, opt(Else)) export class If extends N { constructor(e:E, public expr:Expr, public codeTrue:Stm, public _else:Else) { super(e); } }
 
 @Seq('for', sure(), '(', Id, 'in', Expr, ')', Stm) export class For extends N { constructor(e:E, public id:Id, public expr:Expr, public body:Stm) { super(e); } } 
 @Seq('while', sure(), '(', Expr, ')', Stm) export class While extends N { constructor(e:E, public expr:Expr, public code:Stm) { super(e); } }
@@ -94,6 +102,6 @@ class _ClassType extends N { constructor(e:E, public name:IdWithGenerics, public
 export class Function extends N { constructor(e:E, public name:IdWithGenerics, public args:FuncArgs, public rettype:TypeTag, public body:FunctionBody1|Stm) { super(e); } }
 
 SetAny(Stm,
-EmptyStm, StmsBlock, StaticIf, If, For, While, Return, ClassType, InterfaceType, ExtensionType,
+EmptyStm, StmsBlock, StaticIf, StaticFail, If, For, While, Return, ClassType, InterfaceType, ExtensionType,
 EnumType, Vars, Function, Continue, Break, Fallthrough, ExprStm
 );

@@ -50,13 +50,30 @@ class Generator {
 		if (e instanceof ir.MemberAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('.').with(e.member.name);
 		if (e instanceof ir.ArrayAccess) return IndentedString.EMPTY.with(this.expr(e.left)).with('[').with(this.expr(e.index)).with(']');
 		if (e instanceof ir.UnknownExpression) return IndentedString.EMPTY.with(`$unknown$`);
-		if (e instanceof ir.Immediate) return IndentedString.EMPTY.with(`${e.value}`);
+		if (e instanceof ir.Immediate) {
+			switch (e.type) {
+				case ir.Types.Int: return IndentedString.EMPTY.with(`${e.value}`);
+				case ir.Types.String: return IndentedString.EMPTY.with(JSON.stringify(e.value));
+				default: throw new Error(`gen_js :: Unhandled Immediate Type ${e.type}`);
+			}
+		}
 		if (e instanceof ir.MemberExpression) return IndentedString.EMPTY.with(`this.${e.member.name}`);
 		if (e instanceof ir.ArgumentExpression) return IndentedString.EMPTY.with(`${e.arg.name}`);
 		if (e instanceof ir.LocalExpression) return IndentedString.EMPTY.with(`${e.local.allocName}`);
 		if (e instanceof ir.UnopPost) return IndentedString.EMPTY.with(this.expr(e.left)).with(e.op);
 		if (e instanceof ir.CallExpression) return out.with(this.expr(e.left)).with(this._callArgs(e.args));
 		if (e instanceof ir.NewExpression) return out.with('new ').with(e.clazz.fqname).with(this._callArgs(e.args));
+		if (e instanceof ir.IntrinsicCall) {
+			switch (e.intrinsic) {
+				case ir.INTRINSIC_JS_RAW:
+					let arg = e.args[0];
+					if (arg instanceof ir.Immediate) {
+						return out.with(arg.value);
+					}				
+					break;
+			}
+			throw new Error(`gen_js : Unknown or unhandled intrinsic ${e.intrinsic}`);
+		}
 		
 		throw new Error(`gen_js:Unhandled generate expression ${e}`);
 	}
@@ -70,6 +87,10 @@ class Generator {
 		}
 		out = out.with(')');
 		return out;
+	}
+	
+	private hasConditionalName(name:string) {
+		return ['js'].indexOf(name) >= 0;
 	}
 	
 	protected stm(s:ir.Statement):IndentedString {
@@ -92,6 +113,18 @@ class Generator {
 			out = out.with('{').with(this.stm(s.trueStm)).with('}');
 			out = out.with('else {').with(this.stm(s.falseStm)).with('}');
 			return out;
+		}
+		// @TODO: This should be outside each generator
+		if (s instanceof ir.StaticIfNode) {
+			let out = IndentedString.EMPTY;
+			if (this.hasConditionalName(s.id)) {
+				return out.with(this.stm(s.trueStm));
+			} else {
+				return out.with(this.stm(s.falseStm));
+			}
+		}
+		if (s instanceof ir.StaticFailNode) {
+			throw new Error(`Failed at ${s.psi.file}:${s.psi.range} : ${s.msg}`);
 		}
 		if (s instanceof ir.FastForNode) {
 			let localName = s.local.allocName;
@@ -133,7 +166,7 @@ class Generator {
 			out = out.with('{').with(this.stm(s.body)).with('}');
 			return out;
 		}
-		throw new Error(`Unhandled generate statement ${s}`);
+		throw new Error(`gen_js: Unhandled generate statement ${s}`);
 	}
 
 	private method:ir.IrMethod;

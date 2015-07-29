@@ -63,6 +63,7 @@ class Compiler {
 		if (item instanceof ir.UnknownItem) return b.unknown(psi);
 		if (item instanceof ir.IrMethod) return b.member(psi, item);
 		if (item instanceof ir.IrClass) return b.class(psi, item);
+		if (item instanceof ir.IrIntrinsic) return b.intrinsic(psi, item);
 		throw "Unknown resolution type " + utils.classNameOf(item);
 	}
 	
@@ -107,10 +108,12 @@ class Compiler {
 			return out;
 		} else if (e instanceof syntax.Id) {
 			return this.resolve(psi, e.text, resolver);
-		} else if (e instanceof syntax.Int) {
-			return b.int(psi, e.value);
 		} else if (e instanceof syntax.Literal) {
 			return this.expr(e.item, resolver);
+		} else if (e instanceof syntax.Int) {
+			return b.int(psi, e.value);
+		} else if (e instanceof syntax.String1) {
+			return b.string(psi, e.escapedText);
 		}
 		
 		e._element.root.dump();
@@ -127,6 +130,8 @@ class Compiler {
 		
 		if (e instanceof syntax.Stm) return this.stmStm(e, resolver);
 		if (e instanceof syntax.If) return this.stmIf(e, resolver);
+		if (e instanceof syntax.StaticIf) return this.stmStaticIf(e, resolver);
+		if (e instanceof syntax.StaticFail) return this.stmStaticFail(e, resolver);
 		if (e instanceof syntax.While) return this.stmWhile(e, resolver);
 		if (e instanceof syntax.Return) return this.stmReturn(e, resolver);
 		if (e instanceof syntax.ExprStm) return b.exprstm(psi, this.expr(e.expr, resolver));
@@ -155,7 +160,7 @@ class Compiler {
 		
 		//console.log(e);
 		if (e._element) e._element.root.dump();
-		throw new Error(`Unhandled stm ${e._nodeType} : '${e._text}'`);
+		throw new Error(`compiler : Unhandled stm ${e._nodeType} : '${e._text}'`);
 	}
 	
 	stmVarDecl(e:syntax.VarDecl, resolver:LocalResolver) {
@@ -184,6 +189,16 @@ class Compiler {
 	
 	stmStm(e:syntax.Stm, resolver:LocalResolver) {
 		return this.stm(e.it, resolver);
+	}
+
+	stmStaticIf(e:syntax.StaticIf, resolver:LocalResolver) {
+		let psi = e._element;
+		return this.b.staticif(psi, e.id.text, this.stm(e.codeTrue, resolver), this.stm(e._else ? e._else.codeFalse : null, resolver));
+	}
+	
+	stmStaticFail(e:syntax.StaticFail, resolver:LocalResolver) {
+		let psi = e._element;
+		return this.b.staticfail(psi, e.str.escapedText);
 	}
 	
 	stmIf(e:syntax.If, resolver:LocalResolver) {

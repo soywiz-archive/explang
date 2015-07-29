@@ -421,7 +421,23 @@ export class Resolver {
 	toString() { return '$RESOLVER'; }
 }
 
-export class ResolverGroup {
+export class IrIntrinsic {
+	constructor(public type:Type, public name:string) { }
+	toString() { return `IrIntrinsic(${this.name})`; }
+}
+
+export var INTRINSIC_JS_RAW = new IrIntrinsic(Types.Dynamic, '__js__');
+
+class IntrinsicsResolver extends Resolver {
+	get(name:string):ResolverItem {
+		switch (name) {
+			case '__js__': return INTRINSIC_JS_RAW;
+		}
+		return null;
+	}
+}
+
+export class ResolverGroup extends Resolver {
 	resolvers: Resolver[] = [];
 	add(resolver: Resolver) {
 		this.resolvers.push(resolver);
@@ -505,6 +521,7 @@ export class MethodResolver extends LocalResolver {
 		this.group.add(new ModuleResolver(method.containingClass.module));
 		this.group.add(new MembersResolver(method.containingClass));
 		this.group.add(new ParametersResolver(method.params));
+		this.group.add(new IntrinsicsResolver());
 	}
 	get(name:string) { return this.group.get(name); }
 
@@ -569,6 +586,8 @@ export class Visitor {
 		if (node instanceof BinOpExpression) { this.node(node.left); this.node(node.right); this.nodeBinop(node); return; }
 		if (node instanceof LocalExpression) { this.localExpr(node); return; }
 		if (node instanceof Immediate) { this.immediate(node); return; }
+		if (node instanceof StaticIfNode) { this.node(node.trueStm); this.node(node.falseStm); this.staticIf(node); return; }
+		if (node instanceof StaticFailNode) { this.staticFail(node); return; }
 		if (node instanceof IfNode) { this.node(node.expr); this.node(node.trueStm); this.node(node.falseStm); this.ifNode(node); return; }
 		if (node instanceof WhileNode) { this.node(node.expr); this.node(node.body); this.whileNode(node); return; }
 		if (node instanceof FastForNode) { this.node(node.body); this.fastForNode(node); return; }
@@ -580,9 +599,13 @@ export class Visitor {
 		if (node instanceof AssignExpression) { this.node(node.lvalue); this.node(node.expr); this.assignExpression(node); return; }
 		if (node instanceof NewExpression) { for (let arg of node.args) this.node(arg); this.newExpression(node); return; }
 		if (node instanceof CallExpression) { for (let arg of node.args) this.node(arg); this.node(node.left); this.callExpression(node); return; }
-		throw new Error(`Can't handle ir.node ${classNameOf(node)} :: ${node}`);
+		if (node instanceof IntrinsicCall) { for (let arg of node.args) this.node(arg); this.intrinsicCall(node); return; }
+		throw new Error(`Visitor: Can't handle ir.node ${classNameOf(node)} :: ${node}`);
 	}
 	
+	staticFail(node:StaticFailNode) {}
+	staticIf(node:StaticIfNode) { }
+	intrinsicCall(node:IntrinsicCall) { }
 	assignExpression(node:AssignExpression) { }
 	memberExpression(node:MemberExpression) { }
 	callExpression(node:CallExpression) { }
@@ -632,6 +655,8 @@ export class Analyzer extends Visitor {
 }
 
 export class ExpressionStm extends Statement { constructor(psi:E, public expression:Expression) { super(psi); } }
+export class StaticIfNode extends Statement { constructor(psi:E, public id:string, public trueStm:Statement, public falseStm:Statement) { super(psi); } }
+export class StaticFailNode extends Statement { constructor(psi:E, public msg:string) { super(psi); } }
 export class IfNode extends Statement { constructor(psi:E, public expr:Expression, public trueStm:Statement, public falseStm:Statement) { super(psi); } }
 export class ForNode extends Statement { constructor(psi:E, public local:IrLocal, public expr:Expression, public body:Statement) { super(psi); } }
 export class FastForNode extends Statement { constructor(psi:E, public local:IrLocal, public min:number, public max:number, public body:Statement) { super(psi); } }
@@ -646,8 +671,17 @@ export class MemberExpression extends LeftValue { constructor(psi:E, public memb
 export class ClassExpression extends LeftValue { constructor(psi:E, public clazz:IrClass) { super(psi); } get type() { return Types.classType(this.clazz); } }
 export class ArgumentExpression extends LeftValue { constructor(psi:E, public arg:IrParameter) { super(psi); } get type() { return this.arg.type; } }
 export class ThisExpression extends LeftValue { constructor(psi:E, public clazz:Type) { super(psi); } get type() { return this.clazz; } }
+export class RawExpression extends LeftValue { constructor(psi:E) { super(psi); } get type() { return Types.Dynamic; } }
 export class MemberAccess extends LeftValue { constructor(psi:E, public left:Expression, public member:IrMember) { super(psi); } get type() { return this.member.type; } }
 export class ArrayAccess extends LeftValue { constructor(psi:E, public left:Expression, public index:Expression) { super(psi); } get type() { return Types.getElement(this.left.type); } }
+export class IntrinsicLiteral extends Expression {
+	constructor(psi:E, public intrinsic:IrIntrinsic) { super(psi); }
+	get type() { return this.intrinsic.type; }
+}
+export class IntrinsicCall extends Expression {
+	constructor(psi:E, public intrinsic:IrIntrinsic, public args:Expression[], public retval:Type) { super(psi); }
+	get type() { return this.retval; }
+}
 
 var oops = [
     ["**"],
@@ -695,15 +729,21 @@ export class NodeBuilder {
 	ret(psi:E, expr?:Expression) { return new ReturnNode(psi, expr); }
 	exprstm(psi:E, expr?:Expression) { return new ExpressionStm(psi, expr); }
 	int(psi:E, value:number) { return new Immediate(psi, Types.Int, value | 0); }
+	string(psi:E, value:string) { return new Immediate(psi, Types.String, value); }
 	unknown(psi:E) { return new UnknownExpression(psi); }
 	call(psi:E, left:Expression, args:Expression[], retval:Type):Expression {
 		if (left instanceof ClassExpression) {
 			return new NewExpression(psi, left.clazz, args);
 		}
+		if (left instanceof IntrinsicLiteral) {
+			return new IntrinsicCall(psi, left.intrinsic, args, retval);
+		}
 		return new CallExpression(psi, left, args, retval);
 	}
 	access(psi:E, left:Expression, member:IrMember) { return new MemberAccess(psi, left, member); }
 	arrayAccess(psi:E, left:Expression, index:Expression) { return new ArrayAccess(psi, left, index); }
+	staticif(psi:E, e:string, t:Statement, f:Statement) { return new StaticIfNode(psi, e, t, f); }
+	staticfail(psi:E, msg:string) { return new StaticFailNode(psi, msg); }
 	_if(psi:E, e:Expression, t:Statement, f:Statement) { return new IfNode(psi, e, t, f); }
 	_for(psi:E, local:IrLocal, e:Expression, body:Statement):Statement {
 		if (e instanceof BinOpExpression) {
@@ -742,6 +782,7 @@ export class NodeBuilder {
 	local(psi:E, local:IrLocal) { return new LocalExpression(psi, local); }
 	member(psi:E, member:IrMethod) { return new MemberExpression(psi, member); }
 	class(psi:E, clazz:IrClass) { return new ClassExpression(psi, clazz); }
+	intrinsic(psi:E, intrinsic:IrIntrinsic) { return new IntrinsicLiteral(psi, intrinsic); }
 	arg(psi:E, arg:IrParameter) { return new ArgumentExpression(psi, arg); }
 	assign(psi:E, left:Expression, right:Expression) {
 		return new BinOpExpression(psi, this.module, '=', left, right);

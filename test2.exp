@@ -1,10 +1,8 @@
-class Test {
-	demo:Int = 10;
-	a:Int = 20;
+function isqrt(v:Int):Int {
+	static if (js) {
+		return __js__("Math.sqrt(v)|0");
+	} else {
+		static fail("platform not supported!");
+	}
 }
-
-var a = Test();
-for (n in 0 ... 1000) {
-	a.demo += n;
-}
-return a.demo;
+return isqrt(10);
